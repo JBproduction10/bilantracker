@@ -88,7 +88,7 @@ export async function sendReceiptEmail({
     cash: "Espèces", mobile_money: "Mobile Money", bank_transfer: "Virement bancaire", other: "Autre",
   };
   const lines = payments
-    .map((p) => `  - ${p.date} · ${(methodLabels[p.method] || p.method)} · ${p.amount.toLocaleString("fr-FR")} FCFA`)
+    .map((p) => `  - ${p.date} · ${(methodLabels[p.method] || p.method)} · ${p.amount.toLocaleString("fr-FR")} FC`)
     .join("\n");
   const balance = amountDue - totalPaid;
   const info = await getTransporter().sendMail({
@@ -99,9 +99,9 @@ export async function sendReceiptEmail({
       `Bonjour ${guardianName},\n\n` +
       `Voici le reçu des paiements enregistrés pour ${studentName} (${className}) — ${schoolName} — ${period} :\n\n` +
       `${lines || "  (aucun paiement enregistré pour cette période)"}\n\n` +
-      `Total payé : ${totalPaid.toLocaleString("fr-FR")} FCFA\n` +
-      `Montant dû : ${amountDue.toLocaleString("fr-FR")} FCFA\n` +
-      `Solde restant : ${balance.toLocaleString("fr-FR")} FCFA\n\n` +
+      `Total payé : ${totalPaid.toLocaleString("fr-FR")} FC\n` +
+      `Montant dû : ${amountDue.toLocaleString("fr-FR")} FC\n` +
+      `Solde restant : ${balance.toLocaleString("fr-FR")} FC\n\n` +
       `- ${schoolName}`,
   });
   return { simulated: !hasSmtp, messageId: info.messageId as string };

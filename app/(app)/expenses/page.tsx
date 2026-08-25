@@ -149,7 +149,7 @@ function ExpenseModal({
               </select>
             </div>
             <div>
-              <label className="label">Montant (FCFA)</label>
+              <label className="label">Montant (FC)</label>
               <input className="field" type="number" placeholder="45000" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
           </div>

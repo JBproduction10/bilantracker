@@ -200,7 +200,7 @@ function StudentModal({
               <input className="field" placeholder="ex. CM2" value={className} onChange={(e) => setClassName(e.target.value)} />
             </div>
             <div>
-              <label className="label">Frais mensuel (FCFA)</label>
+              <label className="label">Frais mensuel (FC)</label>
               <input className="field" type="number" placeholder="25000" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} />
             </div>
           </div>
@@ -283,7 +283,7 @@ function AddPaymentModal({
           )}
           <div className="field-row">
             <div>
-              <label className="label">Montant payé (FCFA)</label>
+              <label className="label">Montant payé (FC)</label>
               <input className="field" type="number" placeholder="10000" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div>
@@ -538,7 +538,7 @@ function AdjustmentForm({
           </select>
         </div>
       </div>
-      <label className="label">Montant dû pour cette période (FCFA)</label>
+      <label className="label">Montant dû pour cette période (FC)</label>
       <input className="field" style={{ marginBottom: 10 }} type="number" value={amountDue} onChange={(e) => setAmountDue(e.target.value)} />
       <label className="label">Note (optionnel)</label>
       <input className="field" style={{ marginBottom: 10 }} value={note} onChange={(e) => setNote(e.target.value)} />

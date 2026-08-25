@@ -1,7 +1,7 @@
 export function money(n: number): string {
   const neg = n < 0;
   const v = Math.round(Math.abs(n)).toLocaleString("fr-FR");
-  return `${neg ? "-" : ""}${v} FCFA`;
+  return `${neg ? "-" : ""}${v} FC`;
 }
 
 export function initials(name: string | undefined | null): string {

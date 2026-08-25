@@ -146,7 +146,7 @@ function FieldModal({ school, category, field, onClose, onSaved }: FieldModalPro
                 </select>
               </div>
               <div>
-                <label className="label">{type === "percent" ? "Pourcentage (%)" : "Montant (FCFA)"}</label>
+                <label className="label">{type === "percent" ? "Pourcentage (%)" : "Montant (FC)"}</label>
                 <input className="field" type="number" placeholder={type === "percent" ? "5" : "5000"} value={value} onChange={(e) => setValue(e.target.value)} />
               </div>
             </div>

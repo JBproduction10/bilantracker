@@ -173,7 +173,7 @@ function EmployeeModal({ school, employee, onClose, onSaved }: EmployeeModalProp
           </div>
           <div className="field-row">
             <div>
-              <label className="label">Salaire de base (FCFA)</label>
+              <label className="label">Salaire de base (FC)</label>
               <input className="field" type="number" placeholder="120000" value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} />
             </div>
             <div>
