@@ -113,7 +113,7 @@ export default function SchoolsPage() {
               <button className="close-btn" onClick={() => setRemoveTarget(null)}><X size={18} /></button>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setRemoveTarget(null)}>Cancel</button>
+              <button className="btn btn-outline" onClick={() => setRemoveTarget(null)}>Annuler</button>
               <button className="btn btn-danger" onClick={confirmRemove}>Supprimer</button>
             </div>
           </div>
@@ -189,7 +189,7 @@ function ClientModal({ mode, school, onClose, onSaved }: ClientModalProps) {
           {error && <div className="error-text" style={{ marginTop: 12 }}>{error}</div>}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-outline" onClick={onClose}>Annuler</button>
           <button className="btn btn-primary" disabled={busy} onClick={submit}>
             {busy ? "Saving…" : mode === "edit" ? "Enregistrer" : "Ajouter l'école"}
           </button>

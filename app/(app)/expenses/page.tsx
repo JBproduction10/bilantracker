@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, Pencil, X } from "lucide-react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
 import { money, PERIODS } from "@/lib/utils";
@@ -13,6 +13,7 @@ export default function ExpensesPage() {
   const [period, setPeriod] = useState(PERIODS[2]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editTarget, setEditTarget] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -72,7 +73,8 @@ export default function ExpensesPage() {
                 <td><span className="pill pill-leave">{EXPENSE_CATEGORY_LABELS[e.category]}</span></td>
                 <td style={{ fontWeight: 600 }}>{e.label}{e.note ? <span style={{ color: "var(--muted)", fontWeight: 400 }}> — {e.note}</span> : null}</td>
                 <td className="mono" style={{ color: "var(--red)" }}>{money(-e.amount)}</td>
-                <td style={{ textAlign: "right" }}>
+                <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(e)}><Pencil size={13} /></button>
                   <button className="btn btn-ghost btn-sm" onClick={() => removeExpense(e.id)}><Trash2 size={14} /></button>
                 </td>
               </tr>
@@ -83,25 +85,32 @@ export default function ExpensesPage() {
       </div>
 
       {showAdd && (
-        <AddExpenseModal
+        <ExpenseModal
           schoolId={school.id} defaultPeriod={period}
           onClose={() => setShowAdd(false)}
-          onAdded={async () => { await load(); setShowAdd(false); }}
+          onSaved={async () => { await load(); setShowAdd(false); }}
+        />
+      )}
+      {editTarget && (
+        <ExpenseModal
+          schoolId={school.id} expense={editTarget} defaultPeriod={period}
+          onClose={() => setEditTarget(null)}
+          onSaved={async () => { await load(); setEditTarget(null); }}
         />
       )}
     </>
   );
 }
 
-function AddExpenseModal({
-  schoolId, defaultPeriod, onClose, onAdded,
-}: { schoolId: string; defaultPeriod: string; onClose: () => void; onAdded: () => void | Promise<void> }) {
-  const [category, setCategory] = useState<ExpenseCategory>("fuel");
-  const [label, setLabel] = useState("");
-  const [amount, setAmount] = useState("");
-  const [period, setPeriod] = useState(defaultPeriod);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [note, setNote] = useState("");
+function ExpenseModal({
+  schoolId, expense, defaultPeriod, onClose, onSaved,
+}: { schoolId: string; expense?: Expense; defaultPeriod: string; onClose: () => void; onSaved: () => void | Promise<void> }) {
+  const [category, setCategory] = useState<ExpenseCategory>(expense?.category || "fuel");
+  const [label, setLabel] = useState(expense?.label || "");
+  const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
+  const [period, setPeriod] = useState(expense?.period || defaultPeriod);
+  const [date, setDate] = useState(expense?.date || new Date().toISOString().slice(0, 10));
+  const [note, setNote] = useState(expense?.note || "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -113,8 +122,10 @@ function AddExpenseModal({
     setBusy(true);
     setError("");
     try {
-      await api.addExpense(schoolId, { category, label: label.trim(), amount: Number(amount), period, date, note: note.trim() });
-      onAdded();
+      const body = { category, label: label.trim(), amount: Number(amount), period, date, note: note.trim() };
+      if (expense) await api.updateExpense(schoolId, expense.id, body);
+      else await api.addExpense(schoolId, body);
+      onSaved();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -126,7 +137,7 @@ function AddExpenseModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <p className="modal-title">Ajouter une dépense</p>
+          <p className="modal-title">{expense ? "Modifier la dépense" : "Ajouter une dépense"}</p>
           <button className="close-btn" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="modal-body">
@@ -162,7 +173,7 @@ function AddExpenseModal({
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Annuler</button>
-          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Ajout…" : "Ajouter"}</button>
+          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Enregistrement…" : expense ? "Enregistrer" : "Ajouter"}</button>
         </div>
       </div>
     </div>

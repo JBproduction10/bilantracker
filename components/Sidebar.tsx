@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Users, Building2, Landmark, SlidersHorizontal, FileText, Send, LogOut,
-  GraduationCap, Wallet, BarChart3, ShieldCheck,
+  GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "@/lib/types";
@@ -21,82 +21,92 @@ interface NavItem {
 const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
   super_admin: [
     {
-      section: "Manage",
+      section: "Gestion",
       items: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/schools", label: "Schools", icon: Landmark },
-        { href: "/users", label: "Accounts", icon: ShieldCheck },
+        { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+        { href: "/schools", label: "Écoles", icon: Landmark },
+        { href: "/users", label: "Comptes", icon: ShieldCheck },
       ],
     },
     {
-      section: "Per school",
+      section: "Par école",
       items: [
-        { href: "/students", label: "Students", icon: GraduationCap },
-        { href: "/expenses", label: "Expenses", icon: Wallet },
-        { href: "/employees", label: "Employees", icon: Users },
-        { href: "/departments", label: "Departments", icon: Building2 },
+        { href: "/students", label: "Élèves", icon: GraduationCap },
+        { href: "/receipt-requests", label: "Demandes de reçus", icon: Mail },
+        { href: "/expenses", label: "Dépenses", icon: Wallet },
+        { href: "/employees", label: "Employés", icon: Users },
+        { href: "/departments", label: "Départements", icon: Building2 },
       ],
     },
     {
-      section: "Payroll",
+      section: "Paie",
       items: [
-        { href: "/payslips", label: "Payslips", icon: FileText },
-        { href: "/send", label: "Send Payslips", icon: Send },
-        { href: "/fields", label: "Field Designer", icon: SlidersHorizontal },
+        { href: "/payslips", label: "Fiches de paie", icon: FileText },
+        { href: "/send", label: "Envoyer les fiches", icon: Send },
+        { href: "/fields", label: "Champs de paie", icon: SlidersHorizontal },
       ],
     },
     {
-      section: "Oversight",
-      items: [{ href: "/reports", label: "Reports", icon: BarChart3 }],
+      section: "Supervision",
+      items: [
+        { href: "/reports", label: "Bilans", icon: BarChart3 },
+        { href: "/audit-log", label: "Journal d'audit", icon: History },
+      ],
     },
   ],
   promoter: [
     {
-      section: "Overview",
+      section: "Vue d'ensemble",
       items: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/reports", label: "Reports", icon: BarChart3 },
+        { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+        { href: "/reports", label: "Bilans", icon: BarChart3 },
+        { href: "/audit-log", label: "Journal d'audit", icon: History },
       ],
     },
   ],
   school_admin: [
     {
-      section: "Manage",
+      section: "Gestion",
       items: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/students", label: "Students", icon: GraduationCap },
-        { href: "/expenses", label: "Expenses", icon: Wallet },
+        { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+        { href: "/students", label: "Élèves", icon: GraduationCap },
+        { href: "/receipt-requests", label: "Demandes de reçus", icon: Mail },
+        { href: "/expenses", label: "Dépenses", icon: Wallet },
       ],
     },
     {
-      section: "Staff",
+      section: "Personnel",
       items: [
-        { href: "/employees", label: "Employees", icon: Users },
-        { href: "/departments", label: "Departments", icon: Building2 },
+        { href: "/employees", label: "Employés", icon: Users },
+        { href: "/departments", label: "Départements", icon: Building2 },
       ],
     },
     {
-      section: "Payroll",
+      section: "Paie",
       items: [
-        { href: "/payslips", label: "Payslips", icon: FileText },
-        { href: "/send", label: "Send Payslips", icon: Send },
-        { href: "/fields", label: "Field Designer", icon: SlidersHorizontal },
+        { href: "/payslips", label: "Fiches de paie", icon: FileText },
+        { href: "/send", label: "Envoyer les fiches", icon: Send },
+        { href: "/fields", label: "Champs de paie", icon: SlidersHorizontal },
       ],
+    },
+    {
+      section: "Supervision",
+      items: [{ href: "/audit-log", label: "Journal d'audit", icon: History }],
     },
   ],
   finance: [
     {
-      section: "Payroll",
+      section: "Paie",
       items: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/payslips", label: "Payslips", icon: FileText },
+        { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+        { href: "/payslips", label: "Fiches de paie", icon: FileText },
       ],
     },
   ],
   teacher: [
     {
-      section: "You",
-      items: [{ href: "/my-payslips", label: "My Payslips", icon: FileText }],
+      section: "Vous",
+      items: [{ href: "/my-payslips", label: "Mes fiches", icon: FileText }],
     },
   ],
 };
@@ -135,7 +145,7 @@ export default function Sidebar() {
           <div style={{ fontSize: 12.5, fontWeight: 700 }}>{user?.name}</div>
           <div style={{ fontSize: 11, color: "var(--muted)" }}>{user?.email}</div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => signOut({ callbackUrl: "/login" })} title="Sign out">
+        <button className="btn btn-ghost btn-sm" onClick={() => signOut({ callbackUrl: "/login" })} title="Se déconnecter">
           <LogOut size={14} />
         </button>
       </div>

@@ -1,19 +1,22 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X, Mail, Send } from "lucide-react";
 import { api } from "@/lib/apiClient";
 import { initials } from "@/lib/utils";
-import { ROLE_LABELS, ROLES } from "@/lib/constants";
+import { ROLE_LABELS, ROLES, USER_STATUS_LABELS } from "@/lib/constants";
+import { isValidEmail } from "@/lib/validation";
 import type { AppUser, Role, School } from "@/lib/types";
 
-type SafeUser = Omit<AppUser, "passwordHash">;
+type SafeUser = Omit<AppUser, "passwordHash" | "inviteToken">;
 
 export default function UsersPage() {
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -34,6 +37,17 @@ export default function UsersPage() {
     await load();
   }
 
+  async function resend(id: string) {
+    setBusyId(id);
+    try {
+      const res = await api.resendInvite(id);
+      setNotice(res.simulated ? "Invitation renvoyée (simulée — configurez le SMTP pour un envoi réel)." : "Invitation renvoyée.");
+      setTimeout(() => setNotice(null), 4000);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
       <div className="page-header">
@@ -41,12 +55,22 @@ export default function UsersPage() {
           <h1 className="page-title">Comptes</h1>
           <p className="page-subtitle">{users.length} comptes sur l&apos;ensemble du site</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Créer un compte</button>
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Inviter un compte</button>
+      </div>
+
+      {notice && <div className="card banner" style={{ borderColor: "var(--green)", background: "var(--green-tint)" }}><span style={{ fontSize: 13, color: "var(--green-dark)" }}>{notice}</span></div>}
+
+      <div className="card banner">
+        <div className="banner-icon"><Mail size={16} /></div>
+        <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+          Il n&apos;y a pas d&apos;inscription libre. Seul le super admin crée un compte, avec un nom, un email et un rôle —
+          la personne reçoit un lien par email pour choisir elle-même son mot de passe avant de pouvoir se connecter.
+        </div>
       </div>
 
       <div className="card">
         <table className="tbl">
-          <thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>École</th><th></th></tr></thead>
+          <thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>École</th><th>Statut</th><th></th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
@@ -59,18 +83,33 @@ export default function UsersPage() {
                 <td style={{ color: "var(--muted)" }}>{u.email}</td>
                 <td><span className="pill pill-active">{ROLE_LABELS[u.role]}</span></td>
                 <td>{u.schoolId ? schoolName(u.schoolId) : "Toutes"}</td>
-                <td style={{ textAlign: "right" }}>
+                <td><span className={"pill " + (u.status === "active" ? "pill-sent" : "pill-draft")}>{USER_STATUS_LABELS[u.status]}</span></td>
+                <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                  {u.status === "pending" && (
+                    <button className="btn btn-outline btn-sm" disabled={busyId === u.id} onClick={() => resend(u.id)}>
+                      <Send size={13} /> Renvoyer
+                    </button>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => remove(u.id)}><Trash2 size={14} /></button>
                 </td>
               </tr>
             ))}
-            {!loading && users.length === 0 && <tr><td colSpan={5} className="empty">Aucun compte.</td></tr>}
+            {!loading && users.length === 0 && <tr><td colSpan={6} className="empty">Aucun compte.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {showAdd && (
-        <AddUserModal schools={schools} onClose={() => setShowAdd(false)} onAdded={async () => { await load(); setShowAdd(false); }} />
+        <AddUserModal
+          schools={schools}
+          onClose={() => setShowAdd(false)}
+          onAdded={async (simulated) => {
+            await load();
+            setShowAdd(false);
+            setNotice(simulated ? "Compte créé. Invitation envoyée (simulée — configurez le SMTP pour un envoi réel)." : "Compte créé. Invitation envoyée par email.");
+            setTimeout(() => setNotice(null), 5000);
+          }}
+        />
       )}
     </>
   );
@@ -78,10 +117,9 @@ export default function UsersPage() {
 
 function AddUserModal({
   schools, onClose, onAdded,
-}: { schools: School[]; onClose: () => void; onAdded: () => void | Promise<void> }) {
+}: { schools: School[]; onClose: () => void; onAdded: (simulated: boolean) => void | Promise<void> }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("school_admin");
   const [schoolId, setSchoolId] = useState(schools[0]?.id || "");
   const [employeeId, setEmployeeId] = useState("");
@@ -92,19 +130,23 @@ function AddUserModal({
   const selectedSchool = schools.find((s) => s.id === schoolId);
 
   async function submit() {
-    if (!name.trim() || !email.trim() || !password) {
-      setError("Renseignez le nom, l'email et le mot de passe.");
+    if (!name.trim() || !email.trim()) {
+      setError("Renseignez le nom et l'email.");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError("Cette adresse email n'est pas valide.");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      await api.createUser({
-        name: name.trim(), email: email.trim(), password, role,
+      const created = await api.createUser({
+        name: name.trim(), email: email.trim(), role,
         ...(needsSchool ? { schoolId } : {}),
         ...(role === "teacher" && employeeId ? { employeeId } : {}),
       });
-      onAdded();
+      onAdded(created._invite.simulated);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -116,22 +158,17 @@ function AddUserModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <p className="modal-title">Créer un compte</p>
+          <div>
+            <p className="modal-title">Inviter un compte</p>
+            <p className="modal-sub">Un email sera envoyé pour que la personne choisisse elle-même son mot de passe.</p>
+          </div>
           <button className="close-btn" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="modal-body">
           <label className="label">Nom complet</label>
           <input className="field" style={{ marginBottom: 14 }} placeholder="ex. Jean Mballa" value={name} onChange={(e) => setName(e.target.value)} />
-          <div className="field-row">
-            <div>
-              <label className="label">Email</label>
-              <input className="field" type="email" placeholder="nom@ecole.cm" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Mot de passe</label>
-              <input className="field" type="text" placeholder="min. 6 caractères" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-          </div>
+          <label className="label">Email</label>
+          <input className="field" style={{ marginBottom: 14 }} type="email" placeholder="nom@ecole.cm" value={email} onChange={(e) => setEmail(e.target.value)} />
           <label className="label">Rôle</label>
           <select className="select-el" style={{ marginBottom: 14 }} value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
@@ -160,7 +197,7 @@ function AddUserModal({
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Annuler</button>
-          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Création…" : "Créer le compte"}</button>
+          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Envoi…" : "Créer et inviter"}</button>
         </div>
       </div>
     </div>

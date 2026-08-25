@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { GraduationCap, ChevronRight } from "lucide-react";
@@ -27,7 +28,7 @@ export default function LoginPage() {
     const res = await signIn("credentials", { redirect: false, email, password });
     setBusy(false);
     if (res?.error) {
-      setError("Cet email ou ce mot de passe est incorrect.");
+      setError("Cet email ou ce mot de passe est incorrect. Si vous venez d'être invité, vérifiez d'abord votre email pour créer votre mot de passe.");
     } else {
       router.push("/dashboard");
       router.refresh();
@@ -55,6 +56,9 @@ export default function LoginPage() {
             <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} disabled={busy}>
               {busy ? "Connexion…" : "Se connecter"}
             </button>
+            <Link href="/forgot-password" style={{ display: "block", textAlign: "center", marginTop: 14, fontSize: 12.5, color: "var(--muted)" }}>
+              Mot de passe oublié ?
+            </Link>
           </form>
         </div>
 

@@ -16,9 +16,9 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
-  { key: "earnings", title: "Earnings", desc: "Amounts added to the base salary", icon: <Plus size={16} />, tint: "var(--green)" },
-  { key: "deductions", title: "Deductions", desc: "Amounts taken out of gross pay", icon: <X size={16} />, tint: "var(--red)" },
-  { key: "info", title: "Information", desc: "Details shown on each payslip", icon: <AlertCircle size={16} />, tint: "var(--gold)" },
+  { key: "earnings", title: "Gains", desc: "Montants ajoutés au salaire de base", icon: <Plus size={16} />, tint: "var(--green)" },
+  { key: "deductions", title: "Retenues", desc: "Montants déduits du salaire brut", icon: <X size={16} />, tint: "var(--red)" },
+  { key: "info", title: "Informations", desc: "Détails affichés sur chaque fiche de paie", icon: <AlertCircle size={16} />, tint: "var(--gold)" },
 ];
 
 interface FieldModalState {
@@ -40,8 +40,8 @@ export default function FieldDesigner() {
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Field Designer</h1>
-          <p className="page-subtitle">Design exactly what appears on every payslip for {school.name}.</p>
+          <h1 className="page-title">Champs de paie</h1>
+          <p className="page-subtitle">Configurez précisément ce qui apparaît sur chaque fiche de paie de {school.name}.</p>
         </div>
       </div>
 
@@ -60,10 +60,10 @@ export default function FieldDesigner() {
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6 }}>
                     {f.label}
-                    {f.required && <span className="pill pill-leave" style={{ fontSize: 10 }}>Required</span>}
+                    {f.required && <span className="pill pill-leave" style={{ fontSize: 10 }}>Obligatoire</span>}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                    {s.key === "info" ? "Text field" : f.type === "percent" ? `Percentage · ${f.value}%` : `Fixed amount · ${money(f.value || 0)}`}
+                    {s.key === "info" ? "Champ texte" : f.type === "percent" ? `Pourcentage · ${f.value}%` : `Montant fixe · ${money(f.value || 0)}`}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 2 }}>
@@ -74,7 +74,7 @@ export default function FieldDesigner() {
             ))}
             <div style={{ padding: 14 }}>
               <button className="btn btn-ghost btn-sm" style={{ color: "var(--green-dark)" }} onClick={() => setModal({ category: s.key, field: null })}>
-                <Plus size={14} /> Add {s.key === "info" ? "information" : s.key === "earnings" ? "earning" : "deduction"}
+                <Plus size={14} /> Ajouter {s.key === "info" ? "une information" : s.key === "earnings" ? "un gain" : "une retenue"}
               </button>
             </div>
           </div>
@@ -110,8 +110,8 @@ function FieldModal({ school, category, field, onClose, onSaved }: FieldModalPro
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    if (!label.trim()) return setError("Give this field a label.");
-    if (!isInfo && value === "") return setError("Enter an amount or percentage.");
+    if (!label.trim()) return setError("Donnez un libellé à ce champ.");
+    if (!isInfo && value === "") return setError("Entrez un montant ou un pourcentage.");
     setBusy(true);
     setError("");
     const body = { label: label.trim(), required, ...(isInfo ? {} : { type, value: Number(value) }) };
@@ -130,36 +130,36 @@ function FieldModal({ school, category, field, onClose, onSaved }: FieldModalPro
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <p className="modal-title">{field ? "Edit Field" : "Add Field"}</p>
+          <p className="modal-title">{field ? "Modifier le champ" : "Ajouter un champ"}</p>
           <button className="close-btn" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="modal-body">
-          <label className="label">Field label</label>
-          <input className="field" style={{ marginBottom: 14 }} placeholder="e.g. Overtime Pay" value={label} onChange={(e) => setLabel(e.target.value)} />
+          <label className="label">Libellé du champ</label>
+          <input className="field" style={{ marginBottom: 14 }} placeholder="ex. Heures supplémentaires" value={label} onChange={(e) => setLabel(e.target.value)} />
           {!isInfo && (
             <div className="field-row">
               <div>
                 <label className="label">Type</label>
                 <select className="select-el" value={type} onChange={(e) => setType(e.target.value as FieldType)}>
-                  <option value="fixed">Fixed amount</option>
-                  <option value="percent">Percentage</option>
+                  <option value="fixed">Montant fixe</option>
+                  <option value="percent">Pourcentage</option>
                 </select>
               </div>
               <div>
-                <label className="label">{type === "percent" ? "Percent (%)" : "Amount (USD)"}</label>
-                <input className="field" type="number" placeholder={type === "percent" ? "5" : "500"} value={value} onChange={(e) => setValue(e.target.value)} />
+                <label className="label">{type === "percent" ? "Pourcentage (%)" : "Montant (FCFA)"}</label>
+                <input className="field" type="number" placeholder={type === "percent" ? "5" : "5000"} value={value} onChange={(e) => setValue(e.target.value)} />
               </div>
             </div>
           )}
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-            Required field
+            Champ obligatoire
           </label>
           {error && <div className="error-text" style={{ marginTop: 10 }}>{error}</div>}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Saving…" : "Save Field"}</button>
+          <button className="btn btn-outline" onClick={onClose}>Annuler</button>
+          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Enregistrement…" : "Enregistrer le champ"}</button>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import type { AuthOptions } from "next-auth";
 import { getDb } from "./mongodb";
 import { ensureSeeded } from "./seed";
+import { checkRateLimit, getClientIpFromHeaderRecord } from "./rateLimit";
 import type { AppUser } from "./types";
 
 export const authOptions: AuthOptions = {
@@ -16,12 +17,31 @@ export const authOptions: AuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        // Two independent buckets: per-IP (catches someone spraying many
+        // emails from one place) and per-email (catches someone hammering
+        // one account from many places, e.g. a botnet). Both are checked —
+        // and both consumed — before touching the database, so a lockout
+        // never depends on whether the account exists.
+        const email = credentials.email.trim().toLowerCase();
+        const ip = getClientIpFromHeaderRecord(req?.headers as Record<string, string> | undefined);
+        const ipOk = checkRateLimit(`login:ip:${ip}`, { limit: 20, windowMs: 15 * 60 * 1000 }).allowed;
+        const emailOk = checkRateLimit(`login:email:${email}`, { limit: 8, windowMs: 15 * 60 * 1000 }).allowed;
+        if (!ipOk || !emailOk) return null;
+
         await ensureSeeded();
         const db = await getDb();
-        const user = await db.collection<AppUser>("users").findOne({ email: credentials.email.toLowerCase() });
+        const user = await db.collection<AppUser>("users").findOne({ email });
         if (!user) return null;
+        // Pending accounts (created via the invite flow, no password set yet)
+        // must use their invite link first — that's the only thing that
+        // blocks login. An account with a password hash already set is
+        // treated as active even if it predates the `status` field, so
+        // upgrading the app doesn't lock out accounts seeded before this
+        // feature existed.
+        if (user.status === "pending" || !user.passwordHash) return null;
         const valid = bcrypt.compareSync(credentials.password, user.passwordHash);
         if (!valid) return null;
         return {

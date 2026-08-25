@@ -1,6 +1,9 @@
 import type {
   School, Department, Employee, FieldItem, FieldCategory, Payslip, PayslipStatus,
-  Student, Expense, SchoolReport, AppUser, UserInput,
+  Student, StudentWithLedger, Payment, FeeAdjustment, PaymentInput, FeeAdjustmentInput,
+  Expense, SchoolReport, AppUser, UserInput,
+  ReceiptRequest, ReceiptRequestInput, SendReceiptInput, ReceiptRequestStatus, PublicSchool,
+  AuditEntry, SendAllDraftsResponse,
 } from "./types";
 
 const BASE = "/api";
@@ -37,11 +40,15 @@ export const api = {
 
   addDepartment: (sid: string, body: Partial<Department>) =>
     request<Department>(`/schools/${sid}/departments`, { method: "POST", body }),
+  updateDepartment: (sid: string, did: string, body: Partial<Department>) =>
+    request<Department>(`/schools/${sid}/departments/${did}`, { method: "PUT", body }),
   removeDepartment: (sid: string, did: string) =>
     request<null>(`/schools/${sid}/departments/${did}`, { method: "DELETE" }),
 
   addEmployee: (sid: string, body: Partial<Employee>) =>
     request<Employee>(`/schools/${sid}/employees`, { method: "POST", body }),
+  updateEmployee: (sid: string, eid: string, body: Partial<Employee>) =>
+    request<Employee>(`/schools/${sid}/employees/${eid}`, { method: "PUT", body }),
   removeEmployee: (sid: string, eid: string) =>
     request<null>(`/schools/${sid}/employees/${eid}`, { method: "DELETE" }),
 
@@ -63,23 +70,37 @@ export const api = {
   sendPayslip: (sid: string, pid: string) =>
     request<{ ok: boolean; simulated: boolean }>(`/schools/${sid}/payslips/${pid}/send`, { method: "POST" }),
   sendAllDrafts: (sid: string, period: string) =>
-    request<{ ok: boolean; sent: number; simulated: boolean }>(`/schools/${sid}/payslips/send-all`, {
+    request<SendAllDraftsResponse>(`/schools/${sid}/payslips/send-all`, {
       method: "POST",
       body: { period },
     }),
 
-  listStudents: (sid: string) => request<Student[]>(`/schools/${sid}/students`),
+  listStudents: (sid: string, period: string) =>
+    request<StudentWithLedger[]>(`/schools/${sid}/students?period=${encodeURIComponent(period)}`),
   addStudent: (sid: string, body: Partial<Student>) =>
     request<Student>(`/schools/${sid}/students`, { method: "POST", body }),
+  updateStudent: (sid: string, stid: string, body: Partial<Student>) =>
+    request<Student>(`/schools/${sid}/students/${stid}`, { method: "PUT", body }),
   removeStudent: (sid: string, stid: string) =>
     request<null>(`/schools/${sid}/students/${stid}`, { method: "DELETE" }),
-  recordFeePayment: (sid: string, stid: string, body: { period: string; amountDue: number | string; amountPaid: number | string; status: string }) =>
-    request<Student>(`/schools/${sid}/students/${stid}/records`, { method: "POST", body }),
+
+  getStudentLedger: (sid: string, stid: string) =>
+    request<{ student: Student; payments: Payment[]; adjustments: FeeAdjustment[] }>(`/schools/${sid}/students/${stid}/ledger`),
+  addPayment: (sid: string, stid: string, body: PaymentInput) =>
+    request<Payment>(`/schools/${sid}/students/${stid}/payments`, { method: "POST", body }),
+  removePayment: (sid: string, stid: string, pid: string) =>
+    request<null>(`/schools/${sid}/students/${stid}/payments/${pid}`, { method: "DELETE" }),
+  setFeeAdjustment: (sid: string, stid: string, body: FeeAdjustmentInput) =>
+    request<FeeAdjustment>(`/schools/${sid}/students/${stid}/adjustments`, { method: "POST", body }),
+  removeFeeAdjustment: (sid: string, stid: string, aid: string) =>
+    request<null>(`/schools/${sid}/students/${stid}/adjustments/${aid}`, { method: "DELETE" }),
 
   listExpenses: (sid: string, period: string) =>
     request<Expense[]>(`/schools/${sid}/expenses?period=${encodeURIComponent(period)}`),
   addExpense: (sid: string, body: Partial<Expense>) =>
     request<Expense>(`/schools/${sid}/expenses`, { method: "POST", body }),
+  updateExpense: (sid: string, eid: string, body: Partial<Expense>) =>
+    request<Expense>(`/schools/${sid}/expenses/${eid}`, { method: "PUT", body }),
   removeExpense: (sid: string, eid: string) =>
     request<null>(`/schools/${sid}/expenses/${eid}`, { method: "DELETE" }),
 
@@ -88,9 +109,26 @@ export const api = {
   getAllReports: (period: string) =>
     request<SchoolReport[]>(`/reports?period=${encodeURIComponent(period)}`),
 
-  listUsers: () => request<Omit<AppUser, "passwordHash">[]>("/users"),
-  createUser: (body: UserInput) => request<Omit<AppUser, "passwordHash">>("/users", { method: "POST", body }),
+  listUsers: () => request<Omit<AppUser, "passwordHash" | "inviteToken">[]>("/users"),
+  createUser: (body: UserInput) =>
+    request<Omit<AppUser, "passwordHash" | "inviteToken"> & { _invite: { simulated: boolean } }>("/users", { method: "POST", body }),
   removeUser: (uid: string) => request<null>(`/users/${uid}`, { method: "DELETE" }),
+  resendInvite: (uid: string) => request<{ simulated: boolean }>(`/users/${uid}/resend-invite`, { method: "POST" }),
 
   myPayslips: () => request<MyPayslipsResponse>("/me/payslips"),
+
+  listSchoolsPublic: () => request<PublicSchool[]>("/public/schools"),
+  submitReceiptRequest: (sid: string, body: ReceiptRequestInput) =>
+    request<ReceiptRequest>(`/schools/${sid}/receipt-requests`, { method: "POST", body }),
+  listReceiptRequests: (sid: string, status?: ReceiptRequestStatus) =>
+    request<ReceiptRequest[]>(`/schools/${sid}/receipt-requests${status ? `?status=${status}` : ""}`),
+  sendReceiptForRequest: (sid: string, rid: string, body: { studentId: string; guardianEmail?: string; guardianName?: string }) =>
+    request<{ ok: boolean; simulated: boolean }>(`/schools/${sid}/receipt-requests/${rid}/send`, { method: "POST", body }),
+  declineReceiptRequest: (sid: string, rid: string) =>
+    request<{ ok: boolean }>(`/schools/${sid}/receipt-requests/${rid}/decline`, { method: "POST" }),
+  sendStudentReceipt: (sid: string, stid: string, body: SendReceiptInput) =>
+    request<{ ok: boolean; simulated: boolean }>(`/schools/${sid}/students/${stid}/send-receipt`, { method: "POST", body }),
+
+  listAuditLogs: (schoolId?: string) =>
+    request<AuditEntry[]>(`/audit-logs${schoolId ? `?schoolId=${schoolId}` : ""}`),
 };

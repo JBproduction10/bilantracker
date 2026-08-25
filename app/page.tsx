@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import {
   GraduationCap, Wallet, ShieldCheck,
-  ArrowRight, Sparkles, FileText, BarChart3, Users,
+  ArrowRight, Sparkles, FileText, BarChart3, Users, Mail,
 } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import type { Role } from "@/lib/types";
@@ -29,9 +29,14 @@ export default async function LandingPage() {
           <div className="brand-mark"><GraduationCap size={17} /></div>
           <div className="landing-brand-name">École Bilan</div>
         </div>
-        <Link href={primaryHref} className="btn btn-primary">
-          {primaryLabel} <ArrowRight size={14} />
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href="/receipt-request" className="btn btn-outline">
+            <Mail size={14} /> Demander une copie de paiement
+          </Link>
+          <Link href={primaryHref} className="btn btn-primary">
+            {primaryLabel} <ArrowRight size={14} />
+          </Link>
+        </div>
       </nav>
 
       <section className="landing-hero">

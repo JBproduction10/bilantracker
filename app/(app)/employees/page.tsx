@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Search, Trash2, X } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, X } from "lucide-react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
 import { money, initials } from "@/lib/utils";
-import type { School, EmployeeStatus } from "@/lib/types";
+import { EMPLOYEE_STATUS_LABELS, EMPLOYEE_STATUSES } from "@/lib/constants";
+import type { School, Employee, EmployeeStatus } from "@/lib/types";
 
 export default function Employees() {
   const { school, refresh } = useSchools();
@@ -13,6 +14,7 @@ export default function Employees() {
   const [dept, setDept] = useState("All");
   const [status, setStatus] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
+  const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (!school) return null;
@@ -39,10 +41,10 @@ export default function Employees() {
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Employees</h1>
-          <p className="page-subtitle">{school.employees.length} employees across {school.departments.length} departments</p>
+          <h1 className="page-title">Employés</h1>
+          <p className="page-subtitle">{school.employees.length} employés répartis sur {school.departments.length} départements</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Add Employee</button>
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un employé</button>
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
@@ -50,21 +52,22 @@ export default function Employees() {
           <Search size={14} />
           <input
             style={{ border: "none", background: "none", outline: "none", width: "100%", fontSize: 13, color: "var(--ink)" }}
-            placeholder="Search name, email, role…" value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher par nom, email, poste…" value={query} onChange={(e) => setQuery(e.target.value)}
           />
         </div>
         <select className="select-el" style={{ width: 200 }} value={dept} onChange={(e) => setDept(e.target.value)}>
-          <option>All</option>
+          <option value="All">Tous les départements</option>
           {school.departments.map((d) => <option key={d.id}>{d.name}</option>)}
         </select>
-        <select className="select-el" style={{ width: 150 }} value={status} onChange={(e) => setStatus(e.target.value)}>
-          {["All", "Active", "On Leave", "Inactive"].map((s) => <option key={s}>{s}</option>)}
+        <select className="select-el" style={{ width: 160 }} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="All">Tous les statuts</option>
+          {EMPLOYEE_STATUSES.map((s) => <option key={s} value={s}>{EMPLOYEE_STATUS_LABELS[s]}</option>)}
         </select>
       </div>
 
       <div className="card">
         <table className="tbl">
-          <thead><tr><th>Employee</th><th>Department</th><th>Email</th><th>Base Salary</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Employé</th><th>Département</th><th>Email</th><th>Salaire de base</th><th>Statut</th><th></th></tr></thead>
           <tbody>
             {filtered.map((e) => (
               <tr key={e.id}>
@@ -82,57 +85,60 @@ export default function Employees() {
                 <td className="mono">{money(e.baseSalary)}</td>
                 <td>
                   <span className={"pill " + (e.status === "Active" ? "pill-active" : e.status === "On Leave" ? "pill-leave" : "pill-inactive")}>
-                    {e.status}
+                    {EMPLOYEE_STATUS_LABELS[e.status]}
                   </span>
                 </td>
-                <td style={{ textAlign: "right" }}>
+                <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(e)}><Pencil size={14} /></button>
                   <button className="btn btn-ghost btn-sm" disabled={busyId === e.id} onClick={() => removeEmployee(e.id)}>
                     <Trash2 size={14} />
                   </button>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan={6} className="empty">No employees match those filters.</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={6} className="empty">Aucun employé ne correspond à ces filtres.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {showAdd && (
-        <AddEmployeeModal
-          school={school}
-          onClose={() => setShowAdd(false)}
-          onAdded={async () => { await refresh(); setShowAdd(false); }}
-        />
+        <EmployeeModal school={school} onClose={() => setShowAdd(false)} onSaved={async () => { await refresh(); setShowAdd(false); }} />
+      )}
+      {editTarget && (
+        <EmployeeModal school={school} employee={editTarget} onClose={() => setEditTarget(null)} onSaved={async () => { await refresh(); setEditTarget(null); }} />
       )}
     </>
   );
 }
 
-interface AddEmployeeModalProps {
+interface EmployeeModalProps {
   school: School;
+  employee?: Employee;
   onClose: () => void;
-  onAdded: () => void | Promise<void>;
+  onSaved: () => void | Promise<void>;
 }
 
-function AddEmployeeModal({ school, onClose, onAdded }: AddEmployeeModalProps) {
-  const [name, setName] = useState("");
-  const [position, setPosition] = useState("");
-  const [department, setDepartment] = useState(school.departments[0]?.name || "");
-  const [baseSalary, setBaseSalary] = useState("");
-  const [status, setStatus] = useState<EmployeeStatus>("Active");
+function EmployeeModal({ school, employee, onClose, onSaved }: EmployeeModalProps) {
+  const [name, setName] = useState(employee?.name || "");
+  const [position, setPosition] = useState(employee?.position || "");
+  const [department, setDepartment] = useState(employee?.department || school.departments[0]?.name || "");
+  const [baseSalary, setBaseSalary] = useState(employee ? String(employee.baseSalary) : "");
+  const [status, setStatus] = useState<EmployeeStatus>(employee?.status || "Active");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     if (!name.trim() || !position.trim() || !department || !baseSalary) {
-      setError("Fill in name, position, department, and base salary.");
+      setError("Renseignez le nom, le poste, le département et le salaire de base.");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      await api.addEmployee(school.id, { name: name.trim(), position: position.trim(), department, baseSalary: Number(baseSalary), status });
-      onAdded();
+      const body = { name: name.trim(), position: position.trim(), department, baseSalary: Number(baseSalary), status };
+      if (employee) await api.updateEmployee(school.id, employee.id, body);
+      else await api.addEmployee(school.id, body);
+      onSaved();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -145,21 +151,21 @@ function AddEmployeeModal({ school, onClose, onAdded }: AddEmployeeModalProps) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <p className="modal-title">Add Employee</p>
-            <p className="modal-sub">Enter their pay details to add them to {school.name}.</p>
+            <p className="modal-title">{employee ? "Modifier l'employé" : "Ajouter un employé"}</p>
+            <p className="modal-sub">{employee ? `Mettre à jour les informations pour ${school.name}.` : `Renseignez les informations de paie pour l'ajouter à ${school.name}.`}</p>
           </div>
           <button className="close-btn" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="modal-body">
-          <label className="label">Full name</label>
-          <input className="field" style={{ marginBottom: 14 }} placeholder="e.g. Jane Doe" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="label">Nom complet</label>
+          <input className="field" style={{ marginBottom: 14 }} placeholder="ex. Jean Mballa" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="field-row">
             <div>
-              <label className="label">Position</label>
-              <input className="field" placeholder="e.g. Engineer" value={position} onChange={(e) => setPosition(e.target.value)} />
+              <label className="label">Poste</label>
+              <input className="field" placeholder="ex. Enseignant" value={position} onChange={(e) => setPosition(e.target.value)} />
             </div>
             <div>
-              <label className="label">Department</label>
+              <label className="label">Département</label>
               <select className="select-el" value={department} onChange={(e) => setDepartment(e.target.value)}>
                 {school.departments.map((d) => <option key={d.id}>{d.name}</option>)}
               </select>
@@ -167,21 +173,21 @@ function AddEmployeeModal({ school, onClose, onAdded }: AddEmployeeModalProps) {
           </div>
           <div className="field-row">
             <div>
-              <label className="label">Base salary (USD)</label>
-              <input className="field" type="number" placeholder="6000" value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} />
+              <label className="label">Salaire de base (FCFA)</label>
+              <input className="field" type="number" placeholder="120000" value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} />
             </div>
             <div>
-              <label className="label">Status</label>
+              <label className="label">Statut</label>
               <select className="select-el" value={status} onChange={(e) => setStatus(e.target.value as EmployeeStatus)}>
-                {["Active", "On Leave", "Inactive"].map((s) => <option key={s}>{s}</option>)}
+                {EMPLOYEE_STATUSES.map((s) => <option key={s} value={s}>{EMPLOYEE_STATUS_LABELS[s]}</option>)}
               </select>
             </div>
           </div>
           {error && <div className="error-text">{error}</div>}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Adding…" : "Add Employee"}</button>
+          <button className="btn btn-outline" onClick={onClose}>Annuler</button>
+          <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Enregistrement…" : employee ? "Enregistrer" : "Ajouter l'employé"}</button>
         </div>
       </div>
     </div>

@@ -3,7 +3,8 @@ import { getDb } from "./mongodb";
 import { uid } from "./uid";
 import { computePayslip } from "./calc";
 import type {
-  School, EmployeeStatus, Fields, Student, FeeStatus, Expense, ExpenseCategory, AppUser, Employee,
+  School, EmployeeStatus, Fields, Student, Expense, ExpenseCategory, AppUser, Employee,
+  Payment, FeeAdjustment, PaymentMethod,
 } from "./types";
 
 let seeded = false;
@@ -38,35 +39,46 @@ function emp(
 }
 
 function student(name: string, className: string, monthlyFee: number, guardian: string, phone: string): Student {
-  return {
-    id: uid("stu"), name, className, monthlyFee, status: "unpaid",
-    guardianName: guardian, guardianPhone: phone, records: [],
-  };
+  return { id: uid("stu"), name, className, monthlyFee, guardianName: guardian, guardianPhone: phone };
 }
 
-function feeRecord(period: string, amountDue: number, amountPaid: number, status: FeeStatus) {
-  return { id: uid("fee"), period, amountDue, amountPaid, status, recordedAt: Date.now() };
+const MONTHS: Record<string, string> = {
+  January: "01", February: "02", March: "03", April: "04", May: "05", June: "06",
+  July: "07", August: "08", September: "09", October: "10", November: "11", December: "12",
+};
+function periodToDate(period: string, day = 5): string {
+  const [monthName, year] = period.split(" ");
+  return `${year}-${MONTHS[monthName] || "01"}-${String(day).padStart(2, "0")}`;
 }
 
-function payFull(s: Student, period: string) {
-  s.records.push(feeRecord(period, s.monthlyFee, s.monthlyFee, "paid"));
-  s.status = "paid";
-  return s;
+/** Records one payment transaction — this is the ledger, so every call adds a row, never overwrites. */
+function pay(payments: Payment[], studentId: string, period: string, amount: number, opts: { day?: number; method?: PaymentMethod } = {}) {
+  payments.push({
+    id: uid("pay"), studentId, period, amount,
+    date: periodToDate(period, opts.day ?? 5),
+    method: opts.method ?? "cash",
+    recordedAt: Date.now(),
+  });
 }
-function payPartial(s: Student, period: string, paid: number) {
-  s.records.push(feeRecord(period, s.monthlyFee, paid, "partial"));
-  s.status = "partial";
-  return s;
+/** Full payment in a single transaction. */
+function payFull(payments: Payment[], studentId: string, period: string, fee: number, opts: { day?: number; method?: PaymentMethod } = {}) {
+  pay(payments, studentId, period, fee, opts);
 }
-function payNone(s: Student, period: string) {
-  s.records.push(feeRecord(period, s.monthlyFee, 0, "unpaid"));
-  s.status = "unpaid";
-  return s;
+/** A single partial payment (the student still owes the rest — no fabricated "status" is stored, it's derived later). */
+function payPartial(payments: Payment[], studentId: string, period: string, paid: number, opts: { day?: number; method?: PaymentMethod } = {}) {
+  pay(payments, studentId, period, paid, opts);
 }
-function socialCase(s: Student, period: string) {
-  s.records.push(feeRecord(period, s.monthlyFee, 0, "social_case"));
-  s.status = "social_case";
-  return s;
+/** Two separate installments landing in the SAME period — demonstrates the ledger accumulating rather than overwriting. */
+function payInstallments(payments: Payment[], studentId: string, period: string, amounts: number[], opts: { method?: PaymentMethod } = {}) {
+  amounts.forEach((amt, i) => pay(payments, studentId, period, amt, { day: 4 + i * 12, method: opts.method }));
+}
+/** No payment recorded for this period — left as a no-op call site for readability in the seed data below. */
+function payNone(_payments: Payment[], _studentId: string, _period: string) {
+  // intentionally does nothing — an empty ledger for this period reads as "unpaid"
+}
+/** Marks a period as a social case: the amount due is overridden (often to 0) and flagged for the promoter's visibility. */
+function markSocialCase(adjustments: FeeAdjustment[], studentId: string, period: string, amountDue = 0) {
+  adjustments.push({ id: uid("adj"), studentId, period, amountDue, reason: "social_case", createdAt: Date.now() });
 }
 
 function expense(category: ExpenseCategory, label: string, amount: number, period: string, date: string): Expense {
@@ -100,18 +112,21 @@ function seedSchools(): School[] {
     student("Blaise Enow", "CM2", 25000, "Mme Enow", "699000011"),
     student("Odile Kamga", "CM1", 25000, "M. Kamga", "699000012"),
   ];
-  payFull(cedresStudents[0], "July 2026"); payFull(cedresStudents[0], "August 2026");
-  payFull(cedresStudents[1], "July 2026"); payFull(cedresStudents[1], "August 2026");
-  payFull(cedresStudents[2], "July 2026"); payPartial(cedresStudents[2], "August 2026", 15000);
-  payFull(cedresStudents[3], "July 2026"); payFull(cedresStudents[3], "August 2026");
-  payPartial(cedresStudents[4], "July 2026", 12000); payFull(cedresStudents[4], "August 2026");
-  payFull(cedresStudents[5], "July 2026"); payNone(cedresStudents[5], "August 2026");
-  payFull(cedresStudents[6], "July 2026"); payFull(cedresStudents[6], "August 2026");
-  socialCase(cedresStudents[7], "July 2026"); socialCase(cedresStudents[7], "August 2026");
-  payFull(cedresStudents[8], "July 2026"); payFull(cedresStudents[8], "August 2026");
-  payNone(cedresStudents[9], "July 2026"); payPartial(cedresStudents[9], "August 2026", 10000);
-  payFull(cedresStudents[10], "July 2026"); payFull(cedresStudents[10], "August 2026");
-  payFull(cedresStudents[11], "July 2026"); payFull(cedresStudents[11], "August 2026");
+  const cedresPayments: Payment[] = [];
+  const cedresAdjustments: FeeAdjustment[] = [];
+  payFull(cedresPayments, cedresStudents[0].id, "July 2026", cedresStudents[0].monthlyFee); payFull(cedresPayments, cedresStudents[0].id, "August 2026", cedresStudents[0].monthlyFee);
+  payFull(cedresPayments, cedresStudents[1].id, "July 2026", cedresStudents[1].monthlyFee); payFull(cedresPayments, cedresStudents[1].id, "August 2026", cedresStudents[1].monthlyFee);
+  payFull(cedresPayments, cedresStudents[2].id, "July 2026", cedresStudents[2].monthlyFee); payPartial(cedresPayments, cedresStudents[2].id, "August 2026", 15000);
+  payFull(cedresPayments, cedresStudents[3].id, "July 2026", cedresStudents[3].monthlyFee); payFull(cedresPayments, cedresStudents[3].id, "August 2026", cedresStudents[3].monthlyFee);
+  payPartial(cedresPayments, cedresStudents[4].id, "July 2026", 12000); payFull(cedresPayments, cedresStudents[4].id, "August 2026", cedresStudents[4].monthlyFee);
+  payFull(cedresPayments, cedresStudents[5].id, "July 2026", cedresStudents[5].monthlyFee); payNone(cedresPayments, cedresStudents[5].id, "August 2026");
+  payFull(cedresPayments, cedresStudents[6].id, "July 2026", cedresStudents[6].monthlyFee); payFull(cedresPayments, cedresStudents[6].id, "August 2026", cedresStudents[6].monthlyFee);
+  markSocialCase(cedresAdjustments, cedresStudents[7].id, "July 2026"); markSocialCase(cedresAdjustments, cedresStudents[7].id, "August 2026");
+  payFull(cedresPayments, cedresStudents[8].id, "July 2026", cedresStudents[8].monthlyFee); payFull(cedresPayments, cedresStudents[8].id, "August 2026", cedresStudents[8].monthlyFee);
+  // Two separate installments landing in the same period — the ledger accumulates them (6000 + 4000 = 10000 of 20000 due), it does not overwrite.
+  payNone(cedresPayments, cedresStudents[9].id, "July 2026"); payInstallments(cedresPayments, cedresStudents[9].id, "August 2026", [6000, 4000]);
+  payFull(cedresPayments, cedresStudents[10].id, "July 2026", cedresStudents[10].monthlyFee); payFull(cedresPayments, cedresStudents[10].id, "August 2026", cedresStudents[10].monthlyFee);
+  payFull(cedresPayments, cedresStudents[11].id, "July 2026", cedresStudents[11].monthlyFee); payFull(cedresPayments, cedresStudents[11].id, "August 2026", cedresStudents[11].monthlyFee);
 
   const cedresFields = defaultFields();
   const cedresPayslips = cedresEmployees.filter((e) => e.status !== "Inactive").map((e, i) => {
@@ -134,6 +149,9 @@ function seedSchools(): School[] {
     fields: cedresFields,
     payslips: cedresPayslips,
     students: cedresStudents,
+    payments: cedresPayments,
+    feeAdjustments: cedresAdjustments,
+    receiptRequests: [],
     expenses: [
       expense("fuel", "Carburant groupe électrogène", 45000, "July 2026", "2026-07-05"),
       expense("maintenance", "Réparation plomberie", 30000, "July 2026", "2026-07-12"),
@@ -166,16 +184,19 @@ function seedSchools(): School[] {
     student("Patrick Zang", "6ème", 30000, "Mme Zang", "677000009"),
     student("Diane Oyono", "5ème", 30000, "M. Oyono", "677000010"),
   ];
-  payFull(fontaineStudents[0], "July 2026"); payFull(fontaineStudents[0], "August 2026");
-  payFull(fontaineStudents[1], "July 2026"); payNone(fontaineStudents[1], "August 2026");
-  payPartial(fontaineStudents[2], "July 2026", 15000); payPartial(fontaineStudents[2], "August 2026", 15000);
-  payFull(fontaineStudents[3], "July 2026"); payFull(fontaineStudents[3], "August 2026");
-  payNone(fontaineStudents[4], "July 2026"); payNone(fontaineStudents[4], "August 2026");
-  payFull(fontaineStudents[5], "July 2026"); payFull(fontaineStudents[5], "August 2026");
-  socialCase(fontaineStudents[6], "July 2026"); socialCase(fontaineStudents[6], "August 2026");
-  payFull(fontaineStudents[7], "July 2026"); payPartial(fontaineStudents[7], "August 2026", 20000);
-  payFull(fontaineStudents[8], "July 2026"); payFull(fontaineStudents[8], "August 2026");
-  payFull(fontaineStudents[9], "July 2026"); payFull(fontaineStudents[9], "August 2026");
+  const fontainePayments: Payment[] = [];
+  const fontaineAdjustments: FeeAdjustment[] = [];
+  payFull(fontainePayments, fontaineStudents[0].id, "July 2026", fontaineStudents[0].monthlyFee); payFull(fontainePayments, fontaineStudents[0].id, "August 2026", fontaineStudents[0].monthlyFee);
+  payFull(fontainePayments, fontaineStudents[1].id, "July 2026", fontaineStudents[1].monthlyFee); payNone(fontainePayments, fontaineStudents[1].id, "August 2026");
+  // Three separate installments across the period, all landing on the ledger — a running balance, not a single overwritten number.
+  payInstallments(fontainePayments, fontaineStudents[2].id, "July 2026", [10000, 5000]); payPartial(fontainePayments, fontaineStudents[2].id, "August 2026", 15000);
+  payFull(fontainePayments, fontaineStudents[3].id, "July 2026", fontaineStudents[3].monthlyFee); payFull(fontainePayments, fontaineStudents[3].id, "August 2026", fontaineStudents[3].monthlyFee);
+  payNone(fontainePayments, fontaineStudents[4].id, "July 2026"); payNone(fontainePayments, fontaineStudents[4].id, "August 2026");
+  payFull(fontainePayments, fontaineStudents[5].id, "July 2026", fontaineStudents[5].monthlyFee); payFull(fontainePayments, fontaineStudents[5].id, "August 2026", fontaineStudents[5].monthlyFee);
+  markSocialCase(fontaineAdjustments, fontaineStudents[6].id, "July 2026"); markSocialCase(fontaineAdjustments, fontaineStudents[6].id, "August 2026");
+  payFull(fontainePayments, fontaineStudents[7].id, "July 2026", fontaineStudents[7].monthlyFee); payPartial(fontainePayments, fontaineStudents[7].id, "August 2026", 20000);
+  payFull(fontainePayments, fontaineStudents[8].id, "July 2026", fontaineStudents[8].monthlyFee); payFull(fontainePayments, fontaineStudents[8].id, "August 2026", fontaineStudents[8].monthlyFee);
+  payFull(fontainePayments, fontaineStudents[9].id, "July 2026", fontaineStudents[9].monthlyFee); payFull(fontainePayments, fontaineStudents[9].id, "August 2026", fontaineStudents[9].monthlyFee);
 
   const fontaineFields = defaultFields();
   const fontaineTeacherForPortal = fontaineEmployees[1];
@@ -199,6 +220,9 @@ function seedSchools(): School[] {
     fields: fontaineFields,
     payslips: fontainePayslips,
     students: fontaineStudents,
+    payments: fontainePayments,
+    feeAdjustments: fontaineAdjustments,
+    receiptRequests: [],
     expenses: [
       expense("fuel", "Carburant véhicule scolaire", 60000, "July 2026", "2026-07-08"),
       expense("utilities", "Facture électricité", 48000, "July 2026", "2026-07-20"),
@@ -233,19 +257,21 @@ function seedSchools(): School[] {
     student("Vanessa Kotto", "6ème Bilingue", 38000, "M. Kotto", "655000012"),
     student("Cedric Ossome", "5ème Bilingue", 40000, "Mme Ossome", "655000013"),
   ];
-  payFull(excellenceStudents[0], "August 2026");
-  payFull(excellenceStudents[1], "August 2026");
-  payPartial(excellenceStudents[2], "August 2026", 20000);
-  payFull(excellenceStudents[3], "August 2026");
-  payFull(excellenceStudents[4], "August 2026");
-  payNone(excellenceStudents[5], "August 2026");
-  payFull(excellenceStudents[6], "August 2026");
-  payFull(excellenceStudents[7], "August 2026");
-  socialCase(excellenceStudents[8], "August 2026");
-  payFull(excellenceStudents[9], "August 2026");
-  payPartial(excellenceStudents[10], "August 2026", 25000);
-  payFull(excellenceStudents[11], "August 2026");
-  payNone(excellenceStudents[12], "August 2026");
+  const excellencePayments: Payment[] = [];
+  const excellenceAdjustments: FeeAdjustment[] = [];
+  payFull(excellencePayments, excellenceStudents[0].id, "August 2026", excellenceStudents[0].monthlyFee);
+  payFull(excellencePayments, excellenceStudents[1].id, "August 2026", excellenceStudents[1].monthlyFee);
+  payPartial(excellencePayments, excellenceStudents[2].id, "August 2026", 20000);
+  payFull(excellencePayments, excellenceStudents[3].id, "August 2026", excellenceStudents[3].monthlyFee);
+  payFull(excellencePayments, excellenceStudents[4].id, "August 2026", excellenceStudents[4].monthlyFee);
+  payNone(excellencePayments, excellenceStudents[5].id, "August 2026");
+  payFull(excellencePayments, excellenceStudents[6].id, "August 2026", excellenceStudents[6].monthlyFee);
+  payFull(excellencePayments, excellenceStudents[7].id, "August 2026", excellenceStudents[7].monthlyFee);
+  markSocialCase(excellenceAdjustments, excellenceStudents[8].id, "August 2026");
+  payFull(excellencePayments, excellenceStudents[9].id, "August 2026", excellenceStudents[9].monthlyFee);
+  payPartial(excellencePayments, excellenceStudents[10].id, "August 2026", 25000);
+  payFull(excellencePayments, excellenceStudents[11].id, "August 2026", excellenceStudents[11].monthlyFee);
+  payNone(excellencePayments, excellenceStudents[12].id, "August 2026");
 
   const excellence: School = {
     id: uid("sch"),
@@ -262,6 +288,9 @@ function seedSchools(): School[] {
     fields: defaultFields(),
     payslips: [],
     students: excellenceStudents,
+    payments: excellencePayments,
+    feeAdjustments: excellenceAdjustments,
+    receiptRequests: [],
     expenses: [
       expense("supplies", "Manuels bilingues", 90000, "August 2026", "2026-08-01"),
       expense("fuel", "Carburant bus scolaire", 55000, "August 2026", "2026-08-09"),
@@ -288,14 +317,16 @@ function seedSchools(): School[] {
     student("Inès Ekomo", "Maternelle", 18000, "Mme Ekomo", "690000007"),
     student("Théo Ndongo", "CP", 19000, "M. Ndongo", "690000008"),
   ];
-  payFull(horizonStudents[0], "August 2026");
-  payFull(horizonStudents[1], "August 2026");
-  payPartial(horizonStudents[2], "August 2026", 10000);
-  payFull(horizonStudents[3], "August 2026");
-  payNone(horizonStudents[4], "August 2026");
-  socialCase(horizonStudents[5], "August 2026");
-  payFull(horizonStudents[6], "August 2026");
-  payFull(horizonStudents[7], "August 2026");
+  const horizonPayments: Payment[] = [];
+  const horizonAdjustments: FeeAdjustment[] = [];
+  payFull(horizonPayments, horizonStudents[0].id, "August 2026", horizonStudents[0].monthlyFee);
+  payFull(horizonPayments, horizonStudents[1].id, "August 2026", horizonStudents[1].monthlyFee);
+  payPartial(horizonPayments, horizonStudents[2].id, "August 2026", 10000);
+  payFull(horizonPayments, horizonStudents[3].id, "August 2026", horizonStudents[3].monthlyFee);
+  payNone(horizonPayments, horizonStudents[4].id, "August 2026");
+  markSocialCase(horizonAdjustments, horizonStudents[5].id, "August 2026");
+  payFull(horizonPayments, horizonStudents[6].id, "August 2026", horizonStudents[6].monthlyFee);
+  payFull(horizonPayments, horizonStudents[7].id, "August 2026", horizonStudents[7].monthlyFee);
 
   const horizon: School = {
     id: uid("sch"),
@@ -312,6 +343,9 @@ function seedSchools(): School[] {
     fields: defaultFields(),
     payslips: [],
     students: horizonStudents,
+    payments: horizonPayments,
+    feeAdjustments: horizonAdjustments,
+    receiptRequests: [],
     expenses: [
       expense("renovation", "Réfection cour de récréation", 50000, "August 2026", "2026-08-06"),
       expense("supplies", "Matériel pédagogique maternelle", 24000, "August 2026", "2026-08-15"),
@@ -333,12 +367,14 @@ function seedSchools(): School[] {
     student("Gaëlle Fouda", "CI", 17000, "Mme Fouda", "696000005"),
     student("Elvis Ngo", "CP", 18000, "M. Ngo", "696000006"),
   ];
-  payFull(michelStudents[0], "August 2026");
-  payNone(michelStudents[1], "August 2026");
-  payFull(michelStudents[2], "August 2026");
-  payPartial(michelStudents[3], "August 2026", 8000);
-  socialCase(michelStudents[4], "August 2026");
-  payFull(michelStudents[5], "August 2026");
+  const michelPayments: Payment[] = [];
+  const michelAdjustments: FeeAdjustment[] = [];
+  payFull(michelPayments, michelStudents[0].id, "August 2026", michelStudents[0].monthlyFee);
+  payNone(michelPayments, michelStudents[1].id, "August 2026");
+  payFull(michelPayments, michelStudents[2].id, "August 2026", michelStudents[2].monthlyFee);
+  payPartial(michelPayments, michelStudents[3].id, "August 2026", 8000);
+  markSocialCase(michelAdjustments, michelStudents[4].id, "August 2026");
+  payFull(michelPayments, michelStudents[5].id, "August 2026", michelStudents[5].monthlyFee);
 
   const saintMichel: School = {
     id: uid("sch"),
@@ -355,6 +391,9 @@ function seedSchools(): School[] {
     fields: defaultFields(),
     payslips: [],
     students: michelStudents,
+    payments: michelPayments,
+    feeAdjustments: michelAdjustments,
+    receiptRequests: [],
     expenses: [
       expense("renovation", "Aménagement des salles de classe", 120000, "July 2026", "2026-07-02"),
       expense("supplies", "Tables-bancs et fournitures", 85000, "July 2026", "2026-07-10"),
@@ -372,39 +411,39 @@ async function seedUsers(schools: School[]) {
   const users: AppUser[] = [
     {
       id: uid("user"), name: "Admin Ledger", email: "admin@ledger.io",
-      passwordHash: pw("admin1234"), role: "super_admin",
+      passwordHash: pw("admin1234"), role: "super_admin", status: "active",
     },
     {
       id: uid("user"), name: "Le Promoteur", email: "promoteur@groupescolaire.cm",
-      passwordHash: pw("promoteur1234"), role: "promoter",
+      passwordHash: pw("promoteur1234"), role: "promoter", status: "active",
     },
     {
       id: uid("user"), name: "Marceline Fotso", email: "admin.cedres@groupescolaire.cm",
-      passwordHash: pw("ecole1234"), role: "school_admin", schoolId: cedres.id,
+      passwordHash: pw("ecole1234"), role: "school_admin", status: "active", schoolId: cedres.id,
     },
     {
       id: uid("user"), name: "Rodrigue Tchinda", email: "finance.cedres@groupescolaire.cm",
-      passwordHash: pw("finance1234"), role: "finance", schoolId: cedres.id,
+      passwordHash: pw("finance1234"), role: "finance", status: "active", schoolId: cedres.id,
     },
     {
       id: uid("user"), name: "Hervé Djoumessi", email: "admin.fontaine@groupescolaire.cm",
-      passwordHash: pw("ecole1234"), role: "school_admin", schoolId: fontaine.id,
+      passwordHash: pw("ecole1234"), role: "school_admin", status: "active", schoolId: fontaine.id,
     },
     {
       id: uid("user"), name: fontaineTeacher.name, email: "enseignant.fontaine@groupescolaire.cm",
-      passwordHash: pw("enseignant1234"), role: "teacher", schoolId: fontaine.id, employeeId: fontaineTeacher.id,
+      passwordHash: pw("enseignant1234"), role: "teacher", status: "active", schoolId: fontaine.id, employeeId: fontaineTeacher.id,
     },
     {
       id: uid("user"), name: "Rose Ateba", email: "admin.excellence@groupescolaire.cm",
-      passwordHash: pw("ecole1234"), role: "school_admin", schoolId: excellence.id,
+      passwordHash: pw("ecole1234"), role: "school_admin", status: "active", schoolId: excellence.id,
     },
     {
       id: uid("user"), name: "Théophile Mbassi", email: "admin.horizon@groupescolaire.cm",
-      passwordHash: pw("ecole1234"), role: "school_admin", schoolId: horizon.id,
+      passwordHash: pw("ecole1234"), role: "school_admin", status: "active", schoolId: horizon.id,
     },
     {
       id: uid("user"), name: "Anicet Owona", email: "admin.saintmichel@groupescolaire.cm",
-      passwordHash: pw("ecole1234"), role: "school_admin", schoolId: saintMichel.id,
+      passwordHash: pw("ecole1234"), role: "school_admin", status: "active", schoolId: saintMichel.id,
     },
   ];
 

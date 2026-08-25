@@ -1,11 +1,11 @@
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
+import { logAudit } from "@/lib/audit";
 import { canViewAllSchools, isSuperAdmin, requireCondition } from "@/lib/authz";
 
 export const GET = withAuth(async (_req, _ctx, user) => {
   const schools = await data.listSchools();
   if (canViewAllSchools(user)) return json(schools);
-  // school_admin / finance / teacher only ever see their own school
   return json(schools.filter((s) => s.id === user.schoolId));
 });
 
@@ -16,5 +16,9 @@ export const POST = withAuth(async (req, _ctx, user) => {
     return json({ error: "Give this school a name and email domain." }, { status: 400 });
   }
   const school = await data.createSchool(body);
+  await logAudit({
+    actor: user, action: "school.create", schoolId: school.id, schoolName: school.name,
+    targetType: "school", targetId: school.id, targetLabel: school.name,
+  });
   return json(school, { status: 201 });
 });
