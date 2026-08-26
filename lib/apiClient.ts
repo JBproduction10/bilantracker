@@ -4,6 +4,9 @@ import type {
   Expense, SchoolReport, AppUser, UserInput,
   ReceiptRequest, ReceiptRequestInput, SendReceiptInput, ReceiptRequestStatus, PublicSchool,
   AuditEntry, SendAllDraftsResponse,
+  PurchaseOrder, PurchaseOrderInput, PurchaseOrderDecisionInput, PurchaseOrderStatus,
+  InventoryItem, InventoryItemInput, StockMovement, StockMovementInput, InventorySummary,
+  SalaryGridSubmission, SalaryGridSubmissionInput, SalaryGridDecisionInput, SalaryGridStatus,
 } from "./types";
 
 const BASE = "/api";
@@ -131,4 +134,36 @@ export const api = {
 
   listAuditLogs: (schoolId?: string) =>
     request<AuditEntry[]>(`/audit-logs${schoolId ? `?schoolId=${schoolId}` : ""}`),
+
+  listPurchaseOrders: (sid: string, status?: PurchaseOrderStatus) =>
+    request<PurchaseOrder[]>(`/schools/${sid}/purchase-orders${status ? `?status=${status}` : ""}`),
+  listAllPurchaseOrders: (status?: PurchaseOrderStatus) =>
+    request<PurchaseOrder[]>(`/purchase-orders${status ? `?status=${status}` : ""}`),
+  submitPurchaseOrder: (sid: string, body: PurchaseOrderInput) =>
+    request<PurchaseOrder>(`/schools/${sid}/purchase-orders`, { method: "POST", body }),
+  decidePurchaseOrder: (sid: string, poid: string, body: PurchaseOrderDecisionInput) =>
+    request<PurchaseOrder>(`/schools/${sid}/purchase-orders/${poid}`, { method: "PATCH", body }),
+
+  listInventoryItems: (sid: string) => request<InventoryItem[]>(`/schools/${sid}/inventory/items`),
+  addInventoryItem: (sid: string, body: InventoryItemInput) =>
+    request<InventoryItem>(`/schools/${sid}/inventory/items`, { method: "POST", body }),
+  removeInventoryItem: (sid: string, iid: string) =>
+    request<null>(`/schools/${sid}/inventory/items/${iid}`, { method: "DELETE" }),
+  listStockMovements: (sid: string, period?: string) =>
+    request<StockMovement[]>(`/schools/${sid}/inventory/movements${period ? `?period=${encodeURIComponent(period)}` : ""}`),
+  addStockMovement: (sid: string, body: StockMovementInput) =>
+    request<StockMovement>(`/schools/${sid}/inventory/movements`, { method: "POST", body }),
+  getInventorySummary: (sid: string, period: string) =>
+    request<InventorySummary>(`/schools/${sid}/inventory/summary?period=${encodeURIComponent(period)}`),
+
+  listSalaryGridSubmissions: (sid: string, status?: SalaryGridStatus) =>
+    request<SalaryGridSubmission[]>(`/schools/${sid}/salary-grid${status ? `?status=${status}` : ""}`),
+  listAllSalaryGridSubmissions: (status?: SalaryGridStatus) =>
+    request<SalaryGridSubmission[]>(`/salary-grid${status ? `?status=${status}` : ""}`),
+  submitSalaryGrid: (sid: string, body: SalaryGridSubmissionInput) =>
+    request<SalaryGridSubmission>(`/schools/${sid}/salary-grid`, { method: "POST", body }),
+  decideSalaryGrid: (sid: string, gid: string, body: SalaryGridDecisionInput) =>
+    request<{ submission: SalaryGridSubmission; sendResult: { sent: number; attempted: number; simulated: boolean; failures: { payslipId: string; employeeName: string; reason: string }[] } | null }>(
+      `/schools/${sid}/salary-grid/${gid}`, { method: "PATCH", body }
+    ),
 };

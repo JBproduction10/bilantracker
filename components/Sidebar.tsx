@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard, Users, Building2, Landmark, SlidersHorizontal, FileText, Send, LogOut,
-  GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History,
+  GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History, ClipboardList, Package, Coins,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "@/lib/types";
@@ -36,6 +36,8 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
         { href: "/expenses", label: "Dépenses", icon: Wallet },
         { href: "/employees", label: "Employés", icon: Users },
         { href: "/departments", label: "Départements", icon: Building2 },
+        { href: "/purchase-orders", label: "Bons de commande", icon: ClipboardList },
+        { href: "/inventory", label: "Intendance", icon: Package },
       ],
     },
     {
@@ -44,6 +46,7 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
         { href: "/payslips", label: "Fiches de paie", icon: FileText },
         { href: "/send", label: "Envoyer les fiches", icon: Send },
         { href: "/fields", label: "Champs de paie", icon: SlidersHorizontal },
+        { href: "/salary-grid", label: "Grille salariale", icon: Coins },
       ],
     },
     {
@@ -60,6 +63,8 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
       items: [
         { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
         { href: "/reports", label: "Bilans", icon: BarChart3 },
+        { href: "/purchase-orders", label: "Bons de commande", icon: ClipboardList },
+        { href: "/salary-grid", label: "Grille salariale", icon: Coins },
         { href: "/audit-log", label: "Journal d'audit", icon: History },
       ],
     },
@@ -72,6 +77,8 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
         { href: "/students", label: "Élèves", icon: GraduationCap },
         { href: "/receipt-requests", label: "Demandes de reçus", icon: Mail },
         { href: "/expenses", label: "Dépenses", icon: Wallet },
+        { href: "/purchase-orders", label: "Bons de commande", icon: ClipboardList },
+        { href: "/inventory", label: "Intendance", icon: Package },
       ],
     },
     {
@@ -87,6 +94,7 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
         { href: "/payslips", label: "Fiches de paie", icon: FileText },
         { href: "/send", label: "Envoyer les fiches", icon: Send },
         { href: "/fields", label: "Champs de paie", icon: SlidersHorizontal },
+        { href: "/salary-grid", label: "Grille salariale (Bonté Service)", icon: Coins },
       ],
     },
     {
@@ -107,6 +115,24 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
     {
       section: "Vous",
       items: [{ href: "/my-payslips", label: "Mes fiches", icon: FileText }],
+    },
+  ],
+  treasury: [
+    {
+      section: "Bonté Service",
+      items: [
+        { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+        { href: "/purchase-orders", label: "Bons de commande", icon: ClipboardList },
+        { href: "/salary-grid", label: "Grille salariale", icon: Coins },
+        { href: "/reports", label: "Bilans", icon: BarChart3 },
+        { href: "/audit-log", label: "Journal d'audit", icon: History },
+      ],
+    },
+  ],
+  logistics: [
+    {
+      section: "Intendance",
+      items: [{ href: "/inventory", label: "Fournitures & stock", icon: Package }],
     },
   ],
 };

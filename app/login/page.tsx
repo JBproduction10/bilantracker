@@ -9,6 +9,18 @@ import { GraduationCap, ChevronRight } from "lucide-react";
 const DEMO_ACCOUNTS = [
   { label: "Super Admin (nous)", email: "admin@ledger.io", password: "admin1234", desc: "Gestion complète du site" },
   { label: "Promoteur", email: "promoteur@groupescolaire.cm", password: "promoteur1234", desc: "Bilan des 5 écoles" },
+  {
+    label: "Trésorerie — Bonté Service",
+    email: "tresorerie@bonteservice.cm",
+    password: "tresorerie1234",
+    desc: "Trésorerie & paiements",
+  },
+  {
+    label: "Intendance — Les Cèdres",
+    email: "intendance.cedres@groupescolaire.cm",
+    password: "intendance1234",
+    desc: "Achats, stock & logistique",
+  },
   { label: "Admin d'école — Les Cèdres", email: "admin.cedres@groupescolaire.cm", password: "ecole1234", desc: "Élèves, dépenses, paie" },
   { label: "Finance — Les Cèdres", email: "finance.cedres@groupescolaire.cm", password: "finance1234", desc: "Consultation & impression des fiches" },
   { label: "Enseignant — La Fontaine", email: "enseignant.fontaine@groupescolaire.cm", password: "enseignant1234", desc: "Ses fiches de paie uniquement" },

@@ -9,6 +9,9 @@ import type {
   School, SchoolInput, DepartmentInput, EmployeeInput, FieldInput, FieldCategory, PayslipStatus,
   StudentInput, PaymentInput, FeeAdjustmentInput, ExpenseInput, SchoolReport, Student, Payment, FeeAdjustment,
   ReceiptRequest, ReceiptRequestInput, SendReceiptInput, ReceiptRequestStatus, PublicSchool,
+  PurchaseOrder, PurchaseOrderInput, PurchaseOrderDecisionInput, PurchaseOrderStatus,
+  InventoryItem, InventoryItemInput, StockMovement, StockMovementInput, InventorySummary,
+  SalaryGridSubmission, SalaryGridSubmissionInput, SalaryGridDecisionInput, SalaryGridStatus, SalaryGridEntry,
 } from "./types";
 
 async function collection() {
@@ -54,6 +57,10 @@ export async function createSchool({ name, domain, description, color }: SchoolI
     feeAdjustments: [],
     expenses: [],
     receiptRequests: [],
+    purchaseOrders: [],
+    inventoryItems: [],
+    stockMovements: [],
+    salaryGridSubmissions: [],
   };
   await col.insertOne(school);
   return school;
@@ -212,11 +219,7 @@ export async function listPayslips(sid: string, period?: string) {
   return period ? school.payslips.filter((p) => p.period === period) : school.payslips;
 }
 
-export async function generatePayslips(sid: string, period: string) {
-  if (!period) throw new Error("Choose a pay period.");
-  const col = await collection();
-  const school = await col.findOne({ id: sid });
-  if (!school) throw new Error("School not found.");
+function generatePayslipsForSchool(school: School, period: string) {
   const already = new Set(school.payslips.filter((p) => p.period === period).map((p) => p.employeeId));
   const targets = school.employees.filter((e) => e.status !== "Inactive" && !already.has(e.id));
   const created = targets.map((emp) => {
@@ -224,6 +227,15 @@ export async function generatePayslips(sid: string, period: string) {
     return { id: uid("ps"), employeeId: emp.id, period, status: "draft" as PayslipStatus, generatedAt: Date.now(), ...calc };
   });
   school.payslips.push(...created);
+  return created;
+}
+
+export async function generatePayslips(sid: string, period: string) {
+  if (!period) throw new Error("Choose a pay period.");
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const created = generatePayslipsForSchool(school, period);
   await col.replaceOne({ id: sid }, school);
   return created;
 }
@@ -649,5 +661,283 @@ export async function declineReceiptRequest(sid: string, rid: string, resolvedBy
   req.status = "declined";
   req.resolvedAt = Date.now();
   req.resolvedBy = resolvedBy;
+  await col.replaceOne({ id: sid }, school);
+}
+
+// ---------- Purchase orders ("bons de commande" to Bonté Service) ----------
+export async function listPurchaseOrders(sid: string, status?: PurchaseOrderStatus): Promise<PurchaseOrder[]> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const list = school.purchaseOrders.slice().sort((a, b) => b.requestedAt - a.requestedAt);
+  return status ? list.filter((p) => p.status === status) : list;
+}
+
+/** Aggregates purchase orders across every school — the queue Bonté Service actually works from. */
+export async function listAllPurchaseOrders(status?: PurchaseOrderStatus): Promise<PurchaseOrder[]> {
+  const schools = await listSchools();
+  const all = schools.flatMap((s) => s.purchaseOrders);
+  const list = status ? all.filter((p) => p.status === status) : all;
+  return list.sort((a, b) => b.requestedAt - a.requestedAt);
+}
+
+export async function addPurchaseOrder(sid: string, { category, label, amountRequested, period, note }: PurchaseOrderInput, requestedBy?: string): Promise<PurchaseOrder> {
+  if (!category || !label || !amountRequested || !period) {
+    throw new Error("Fill in the category, label, amount, and period.");
+  }
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const order: PurchaseOrder = {
+    id: uid("po"), schoolId: sid, schoolName: school.name,
+    category, label, amountRequested: Number(amountRequested), period,
+    note: note?.trim() || undefined,
+    status: "pending", requestedBy, requestedAt: Date.now(),
+  };
+  school.purchaseOrders.push(order);
+  await col.replaceOne({ id: sid }, school);
+  return order;
+}
+
+/**
+ * Bonté Service's side of the workflow: validate (approve in principle),
+ * reject, or execute. Executing creates the matching Expense on the
+ * school automatically — the actual outflow record the promoter sees —
+ * so there is exactly one place an outgoing amount is entered, never two.
+ */
+export async function decidePurchaseOrder(
+  sid: string,
+  poid: string,
+  { action, note, executedAmount }: PurchaseOrderDecisionInput,
+  actorName?: string
+): Promise<PurchaseOrder> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const order = school.purchaseOrders.find((p) => p.id === poid);
+  if (!order) throw new Error("Purchase order not found.");
+
+  if (action === "validate") {
+    if (order.status !== "pending") throw new Error("Only a pending request can be validated.");
+    order.status = "validated";
+  } else if (action === "reject") {
+    if (order.status === "executed") throw new Error("An executed request can't be rejected.");
+    order.status = "rejected";
+  } else if (action === "execute") {
+    if (order.status !== "pending" && order.status !== "validated") {
+      throw new Error("Only a pending or validated request can be executed.");
+    }
+    const amount = executedAmount !== undefined && executedAmount !== "" ? Number(executedAmount) : order.amountRequested;
+    if (!amount || amount <= 0) throw new Error("Enter the amount actually disbursed.");
+    const newExpense = {
+      id: uid("exp"), category: order.category, label: order.label, amount,
+      period: order.period, date: new Date().toISOString().slice(0, 10),
+      note: `Bon de commande ${order.id}${note ? " — " + note : ""}`,
+      addedBy: actorName, createdAt: Date.now(),
+    };
+    school.expenses.push(newExpense);
+    order.status = "executed";
+    order.executedAmount = amount;
+    order.executedAt = Date.now();
+    order.executedExpenseId = newExpense.id;
+  } else {
+    throw new Error("Unknown action.");
+  }
+
+  order.decidedBy = actorName;
+  order.decidedAt = Date.now();
+  if (note) order.decisionNote = note;
+
+  await col.replaceOne({ id: sid }, school);
+  return order;
+}
+
+// ---------- Inventory / Intendance & Logistique ----------
+export async function listInventoryItems(sid: string): Promise<InventoryItem[]> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  return school.inventoryItems;
+}
+
+export async function addInventoryItem(sid: string, { name, category, unitPrice, initialQuantity }: InventoryItemInput): Promise<InventoryItem> {
+  if (!name?.trim() || !category || unitPrice === undefined || unitPrice === "") {
+    throw new Error("Give the item a name, category, and unit price.");
+  }
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const item: InventoryItem = {
+    id: uid("item"), name: name.trim(), category,
+    unitPrice: Number(unitPrice), quantityOnHand: Number(initialQuantity) || 0,
+  };
+  school.inventoryItems.push(item);
+  await col.replaceOne({ id: sid }, school);
+  return item;
+}
+
+export async function removeInventoryItem(sid: string, iid: string): Promise<void> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  school.inventoryItems = school.inventoryItems.filter((i) => i.id !== iid);
+  await col.replaceOne({ id: sid }, school);
+}
+
+export async function listStockMovements(sid: string, period?: string): Promise<StockMovement[]> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const list = school.stockMovements.slice().sort((a, b) => b.recordedAt - a.recordedAt);
+  return period ? list.filter((m) => m.period === period) : list;
+}
+
+/**
+ * Records one movement and updates the item's running stock level —
+ * "in" adds, "sale" subtracts (and captures the revenue), "adjustment"
+ * sets a signed correction (e.g. after a physical inventory count finds
+ * a discrepancy, which is exactly the kind of gap this module exists to
+ * surface).
+ */
+export async function addStockMovement(sid: string, { itemId, type, quantity, unitPrice, period, date, note }: StockMovementInput, recordedBy?: string): Promise<StockMovement> {
+  const qty = Number(quantity);
+  if (!itemId || !type || !qty || !period) throw new Error("Choose an item, a movement type, a period, and a quantity.");
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const item = school.inventoryItems.find((i) => i.id === itemId);
+  if (!item) throw new Error("Item not found.");
+
+  const price = unitPrice !== undefined && unitPrice !== "" ? Number(unitPrice) : item.unitPrice;
+
+  if (type === "in") {
+    item.quantityOnHand += qty;
+  } else if (type === "sale") {
+    if (qty > item.quantityOnHand) throw new Error("Not enough stock on hand for this sale.");
+    item.quantityOnHand -= qty;
+  } else if (type === "adjustment") {
+    item.quantityOnHand += qty; // qty may be negative for a shrinkage correction
+    if (item.quantityOnHand < 0) throw new Error("This adjustment would take stock below zero.");
+  } else {
+    throw new Error("Unknown movement type.");
+  }
+
+  const movement: StockMovement = {
+    id: uid("mv"), itemId, itemName: item.name, type, quantity: qty,
+    unitPrice: price, amount: Math.abs(qty) * price, period,
+    date: date || new Date().toISOString().slice(0, 10),
+    note: note?.trim() || undefined, recordedBy, recordedAt: Date.now(),
+  };
+  school.stockMovements.push(movement);
+  await col.replaceOne({ id: sid }, school);
+  return movement;
+}
+
+export function computeInventorySummary(school: School, period: string): InventorySummary {
+  const stockValue = school.inventoryItems.reduce((s, i) => s + i.quantityOnHand * i.unitPrice, 0);
+  const sales = school.stockMovements.filter((m) => m.type === "sale" && (period === "all" || m.period === period));
+  const unitsSoldInPeriod = sales.reduce((s, m) => s + m.quantity, 0);
+  const revenueInPeriod = sales.reduce((s, m) => s + (m.amount || 0), 0);
+  return { itemsTotal: school.inventoryItems.length, stockValue, unitsSoldInPeriod, revenueInPeriod };
+}
+
+export async function getInventorySummary(sid: string, period: string): Promise<InventorySummary> {
+  const school = await getSchool(sid);
+  if (!school) throw new Error("School not found.");
+  return computeInventorySummary(school, period);
+}
+
+// ---------- Salary grid (Bonté Service pushes base salaries; super admin applies + sends) ----------
+export async function listSalaryGridSubmissions(sid: string, status?: SalaryGridStatus): Promise<SalaryGridSubmission[]> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const list = school.salaryGridSubmissions.slice().sort((a, b) => b.submittedAt - a.submittedAt);
+  return status ? list.filter((s) => s.status === status) : list;
+}
+
+/** The network-wide queue the super admin actually works from — every school's pending pushes in one place. */
+export async function listAllSalaryGridSubmissions(
+  status?: SalaryGridStatus
+): Promise<SalaryGridSubmission[]> {
+  const schools = await listSchools();
+
+  const all = schools.flatMap((s) =>
+    (s.salaryGridSubmissions || []).filter(
+      (submission): submission is SalaryGridSubmission => Boolean(submission)
+    )
+  );
+
+  const list = status
+    ? all.filter((s) => s.status === status)
+    : all;
+
+  return list.sort((a, b) => b.submittedAt - a.submittedAt);
+}
+
+export async function submitSalaryGrid(sid: string, { period, entries, note }: SalaryGridSubmissionInput, submittedBy?: string): Promise<SalaryGridSubmission> {
+  if (!period || !entries?.length) throw new Error("Choose a period and include at least one employee.");
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const resolved: SalaryGridEntry[] = entries.map((e) => {
+    const employee = school.employees.find((emp) => emp.id === e.employeeId);
+    if (!employee) throw new Error("One of the employees on this grid was not found at that school.");
+    const baseSalary = Number(e.baseSalary);
+    if (!baseSalary || baseSalary <= 0) throw new Error(`Enter a valid base salary for ${employee.name}.`);
+    return { employeeId: employee.id, employeeName: employee.name, baseSalary, note: e.note?.trim() || undefined };
+  });
+  const submission: SalaryGridSubmission = {
+    id: uid("grid"), schoolId: sid, schoolName: school.name, period, entries: resolved,
+    note: note?.trim() || undefined, status: "pending", submittedBy, submittedAt: Date.now(),
+  };
+  school.salaryGridSubmissions.push(submission);
+  await col.replaceOne({ id: sid }, school);
+  return submission;
+}
+
+/**
+ * The site owner's side of the flow: applying pushes each entry's base
+ * salary onto the matching employee and generates that period's payslips
+ * from the updated figures — the one place base salaries actually change,
+ * so a school never re-enters what Bonté Service already sent.
+ */
+export async function decideSalaryGrid(sid: string, gid: string, { action, note }: SalaryGridDecisionInput, actorName?: string): Promise<SalaryGridSubmission> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const submission = school.salaryGridSubmissions.find((s) => s.id === gid);
+  if (!submission) throw new Error("Salary grid submission not found.");
+  if (submission.status !== "pending") throw new Error("This submission was already decided.");
+
+  if (action === "reject") {
+    submission.status = "rejected";
+  } else if (action === "apply") {
+    submission.entries.forEach((entry) => {
+      const employee = school.employees.find((e) => e.id === entry.employeeId);
+      if (employee) employee.baseSalary = entry.baseSalary;
+    });
+    const created = generatePayslipsForSchool(school, submission.period);
+    submission.status = "applied";
+    submission.generatedCount = created.length;
+  } else {
+    throw new Error("Unknown action.");
+  }
+
+  submission.decidedBy = actorName;
+  submission.decidedAt = Date.now();
+  if (note) submission.decisionNote = note;
+
+  await col.replaceOne({ id: sid }, school);
+  return submission;
+}
+
+/** Records how many of the generated payslips actually went out, once sendAllDrafts has run for that period. */
+export async function recordSalaryGridSendResult(sid: string, gid: string, sentCount: number): Promise<void> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) return;
+  const submission = school.salaryGridSubmissions.find((s) => s.id === gid);
+  if (submission) submission.sentCount = sentCount;
   await col.replaceOne({ id: sid }, school);
 }

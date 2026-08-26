@@ -45,7 +45,7 @@ export async function createUser({ name, email, role, schoolId, employeeId }: Us
   const col = await collection();
   const clash = await col.findOne({ email: cleanEmail });
   if (clash) throw new Error("Someone already has an account with that email.");
-  if ((role === "school_admin" || role === "finance" || role === "teacher") && !schoolId) {
+  if ((role === "school_admin" || role === "finance" || role === "teacher" || role === "logistics") && !schoolId) {
     throw new Error("Choose which school this account belongs to.");
   }
 

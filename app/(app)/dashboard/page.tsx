@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Landmark, FileText, GraduationCap, Wallet, TrendingUp, ArrowRight } from "lucide-react";
+import { Landmark, FileText, GraduationCap, Wallet, TrendingUp, ArrowRight, ClipboardList } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
 import { money, initials, PERIODS } from "@/lib/utils";
-import type { Payslip, SchoolReport } from "@/lib/types";
+import { PURCHASE_ORDER_STATUS_LABELS, PURCHASE_ORDER_STATUS_PILL } from "@/lib/constants";
+import type { Payslip, SchoolReport, PurchaseOrder } from "@/lib/types";
 
 export default function Dashboard() {
   const { data: session } = useSession();
@@ -15,6 +16,7 @@ export default function Dashboard() {
 
   if (role === "promoter") return <PromoterDashboard />;
   if (role === "finance") return <FinanceDashboard />;
+  if (role === "treasury") return <TreasuryDashboard />;
   return <SchoolDashboard />;
 }
 
@@ -216,6 +218,71 @@ function FinanceDashboard() {
       <button className="btn btn-primary" onClick={() => router.push("/payslips")}>
         Voir et imprimer les fiches <ArrowRight size={14} />
       </button>
+    </>
+  );
+}
+
+/* ---------- treasury (Bonté Service): network-wide income vs. requests/outflow, decides on purchase orders ---------- */
+function TreasuryDashboard() {
+  const [period, setPeriod] = useState(PERIODS[2]);
+  const [reports, setReports] = useState<SchoolReport[]>([]);
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    api.getAllReports(period).then(setReports);
+    api.listAllPurchaseOrders().then(setOrders);
+  }, [period]);
+
+  const totals = reports.reduce(
+    (acc, r) => ({ income: acc.income + r.totalIncome, outflow: acc.outflow + r.totalOutflow }),
+    { income: 0, outflow: 0 }
+  );
+  const pending = orders.filter((o) => o.status === "pending");
+  const validated = orders.filter((o) => o.status === "validated");
+  const totalAwaiting = [...pending, ...validated].reduce((s, o) => s + o.amountRequested, 0);
+
+  return (
+    <>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Tableau de bord</h1>
+          <p className="page-subtitle">Bonté Service · vue réseau des entrées et sorties</p>
+        </div>
+        <select className="select-el" style={{ width: 170 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+          {PERIODS.map((p) => <option key={p}>{p}</option>)}
+        </select>
+      </div>
+
+      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="card stat"><div className="stat-label">Encaissé (réseau)</div><div className="stat-value mono">{money(totals.income)}</div></div>
+        <div className="card stat"><div className="stat-label">Sorties (réseau)</div><div className="stat-value mono">{money(totals.outflow)}</div></div>
+        <div className="card stat"><div className="stat-label">Demandes à traiter</div><div className="stat-value">{pending.length + validated.length}</div></div>
+        <div className="card stat"><div className="stat-label">Montant en attente</div><div className="stat-value mono">{money(totalAwaiting)}</div></div>
+      </div>
+
+      <div className="card" style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 14.5 }}>Demandes en attente</div>
+          <button className="btn btn-outline btn-sm" onClick={() => router.push("/purchase-orders")}>
+            <ClipboardList size={13} /> Voir toutes les demandes
+          </button>
+        </div>
+        <table className="tbl">
+          <thead><tr><th>École</th><th>Libellé</th><th>Montant</th><th>Statut</th></tr></thead>
+          <tbody>
+            {[...pending, ...validated].slice(0, 6).map((o) => (
+              <tr key={o.id}>
+                <td style={{ fontWeight: 600 }}>{o.schoolName}</td>
+                <td>{o.label}</td>
+                <td className="mono">{money(o.amountRequested)}</td>
+                <td><span className={"pill " + PURCHASE_ORDER_STATUS_PILL[o.status]}>{PURCHASE_ORDER_STATUS_LABELS[o.status]}</span></td>
+              </tr>
+            ))}
+            {pending.length + validated.length === 0 && <tr><td colSpan={4} className="empty">Aucune demande en attente.</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

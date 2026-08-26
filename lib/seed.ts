@@ -4,7 +4,8 @@ import { uid } from "./uid";
 import { computePayslip } from "./calc";
 import type {
   School, EmployeeStatus, Fields, Student, Expense, ExpenseCategory, AppUser, Employee,
-  Payment, FeeAdjustment, PaymentMethod,
+  Payment, FeeAdjustment, PaymentMethod, PurchaseOrder, PurchaseOrderStatus, InventoryItem, InventoryCategory, StockMovement,
+  SalaryGridSubmission, SalaryGridStatus,
 } from "./types";
 
 let seeded = false;
@@ -85,6 +86,60 @@ function expense(category: ExpenseCategory, label: string, amount: number, perio
   return { id: uid("exp"), category, label, amount, period, date, createdAt: Date.now() };
 }
 
+function po(
+  schoolId: string, schoolName: string, category: ExpenseCategory, label: string, amountRequested: number, period: string,
+  status: PurchaseOrderStatus, opts: { date?: string; executedAmount?: number; note?: string } = {}
+): PurchaseOrder {
+  const requestedAt = Date.now() - 1000 * 60 * 60 * 24 * 3;
+  const base: PurchaseOrder = {
+    id: uid("po"), schoolId, schoolName, category, label, amountRequested, period,
+    note: opts.note, status: "pending", requestedBy: "Administration école", requestedAt,
+  };
+  if (status === "pending") return base;
+  base.status = status;
+  base.decidedBy = "Bonté Service";
+  base.decidedAt = requestedAt + 1000 * 60 * 60 * 24;
+  if (status === "executed") {
+    base.executedAmount = opts.executedAmount ?? amountRequested;
+    base.executedAt = base.decidedAt;
+  }
+  return base;
+}
+
+function invItem(name: string, category: InventoryCategory, unitPrice: number, quantityOnHand: number): InventoryItem {
+  return { id: uid("item"), name, category, unitPrice, quantityOnHand };
+}
+
+function stockIn(itemId: string, itemName: string, quantity: number, unitPrice: number, period: string, date: string): StockMovement {
+  return { id: uid("mv"), itemId, itemName, type: "in", quantity, unitPrice, amount: quantity * unitPrice, period, date, recordedAt: Date.now(), recordedBy: "Intendance" };
+}
+
+function stockSale(itemId: string, itemName: string, quantity: number, unitPrice: number, period: string, date: string): StockMovement {
+  return { id: uid("mv"), itemId, itemName, type: "sale", quantity, unitPrice, amount: quantity * unitPrice, period, date, recordedAt: Date.now(), recordedBy: "Intendance" };
+}
+
+function salaryGrid(
+  schoolId: string, schoolName: string, period: string,
+  entries: { employeeId: string; employeeName: string; baseSalary: number }[],
+  status: SalaryGridStatus
+): SalaryGridSubmission {
+  const submittedAt = Date.now() - 1000 * 60 * 60 * 24 * 2;
+  const base: SalaryGridSubmission = {
+    id: uid("grid"), schoolId, schoolName, period, entries,
+    status: "pending", submittedBy: "Bonté Service", submittedAt,
+  };
+  if (status !== "pending") {
+    base.status = status;
+    base.decidedBy = "Super Admin";
+    base.decidedAt = submittedAt + 1000 * 60 * 60 * 24;
+    if (status === "applied") {
+      base.generatedCount = entries.length;
+      base.sentCount = entries.length;
+    }
+  }
+  return base;
+}
+
 function seedSchools(): School[] {
   // ---------- 1. Groupe Scolaire Les Cèdres ----------
   const cedresEmployees = [
@@ -134,8 +189,15 @@ function seedSchools(): School[] {
     return { id: uid("ps"), employeeId: e.id, period: "July 2026", status: (i % 3 === 0 ? "draft" : "sent") as "draft" | "sent", generatedAt: Date.now(), ...calc };
   });
 
+  const cedresInventory = [
+    invItem("Uniforme complet primaire", "uniform", 12000, 34),
+    invItem("Paire de chaussures", "shoes", 9000, 18),
+    invItem("Pull scolaire", "sweater", 7000, 26),
+  ];
+
+  const cedresId = uid("sch");
   const cedres: School = {
-    id: uid("sch"),
+    id: cedresId,
     name: "Groupe Scolaire Les Cèdres",
     domain: "cedres.edu",
     description: "Primaire — Yaoundé",
@@ -152,6 +214,25 @@ function seedSchools(): School[] {
     payments: cedresPayments,
     feeAdjustments: cedresAdjustments,
     receiptRequests: [],
+    purchaseOrders: [
+      po(cedresId, "Groupe Scolaire Les Cèdres", "maintenance", "Réparation toiture bloc CM2", 150000, "August 2026", "pending"),
+      po(cedresId, "Groupe Scolaire Les Cèdres", "supplies", "Cahiers et manuels rentrée", 90000, "August 2026", "validated"),
+      po(cedresId, "Groupe Scolaire Les Cèdres", "fuel", "Carburant groupe électrogène", 45000, "July 2026", "executed", { executedAmount: 43500 }),
+    ],
+    inventoryItems: cedresInventory,
+    stockMovements: [
+      stockIn(cedresInventory[0].id, cedresInventory[0].name, 40, 12000, "July 2026", "2026-07-02"),
+      stockSale(cedresInventory[0].id, cedresInventory[0].name, 6, 12000, "July 2026", "2026-07-20"),
+      stockIn(cedresInventory[1].id, cedresInventory[1].name, 20, 9000, "July 2026", "2026-07-02"),
+      stockSale(cedresInventory[1].id, cedresInventory[1].name, 2, 9000, "August 2026", "2026-08-05"),
+    ],
+    salaryGridSubmissions: [
+      salaryGrid(cedresId, "Groupe Scolaire Les Cèdres", "August 2026", [
+        { employeeId: cedresEmployees[1].id, employeeName: cedresEmployees[1].name, baseSalary: 125000 },
+        { employeeId: cedresEmployees[2].id, employeeName: cedresEmployees[2].name, baseSalary: 118000 },
+        { employeeId: cedresEmployees[3].id, employeeName: cedresEmployees[3].name, baseSalary: 112000 },
+      ], "pending"),
+    ],
     expenses: [
       expense("fuel", "Carburant groupe électrogène", 45000, "July 2026", "2026-07-05"),
       expense("maintenance", "Réparation plomberie", 30000, "July 2026", "2026-07-12"),
@@ -223,6 +304,10 @@ function seedSchools(): School[] {
     payments: fontainePayments,
     feeAdjustments: fontaineAdjustments,
     receiptRequests: [],
+    purchaseOrders: [],
+    inventoryItems: [],
+    stockMovements: [],
+    salaryGridSubmissions: [],
     expenses: [
       expense("fuel", "Carburant véhicule scolaire", 60000, "July 2026", "2026-07-08"),
       expense("utilities", "Facture électricité", 48000, "July 2026", "2026-07-20"),
@@ -291,6 +376,10 @@ function seedSchools(): School[] {
     payments: excellencePayments,
     feeAdjustments: excellenceAdjustments,
     receiptRequests: [],
+    purchaseOrders: [],
+    inventoryItems: [],
+    stockMovements: [],
+    salaryGridSubmissions: [],
     expenses: [
       expense("supplies", "Manuels bilingues", 90000, "August 2026", "2026-08-01"),
       expense("fuel", "Carburant bus scolaire", 55000, "August 2026", "2026-08-09"),
@@ -346,6 +435,10 @@ function seedSchools(): School[] {
     payments: horizonPayments,
     feeAdjustments: horizonAdjustments,
     receiptRequests: [],
+    purchaseOrders: [],
+    inventoryItems: [],
+    stockMovements: [],
+    salaryGridSubmissions: [],
     expenses: [
       expense("renovation", "Réfection cour de récréation", 50000, "August 2026", "2026-08-06"),
       expense("supplies", "Matériel pédagogique maternelle", 24000, "August 2026", "2026-08-15"),
@@ -394,6 +487,10 @@ function seedSchools(): School[] {
     payments: michelPayments,
     feeAdjustments: michelAdjustments,
     receiptRequests: [],
+    purchaseOrders: [],
+    inventoryItems: [],
+    stockMovements: [],
+    salaryGridSubmissions: [],
     expenses: [
       expense("renovation", "Aménagement des salles de classe", 120000, "July 2026", "2026-07-02"),
       expense("supplies", "Tables-bancs et fournitures", 85000, "July 2026", "2026-07-10"),
@@ -418,12 +515,20 @@ async function seedUsers(schools: School[]) {
       passwordHash: pw("promoteur1234"), role: "promoter", status: "active",
     },
     {
+      id: uid("user"), name: "Bonté Service", email: "tresorerie@bonteservice.cm",
+      passwordHash: pw("tresorerie1234"), role: "treasury", status: "active",
+    },
+    {
       id: uid("user"), name: "Marceline Fotso", email: "admin.cedres@groupescolaire.cm",
       passwordHash: pw("ecole1234"), role: "school_admin", status: "active", schoolId: cedres.id,
     },
     {
       id: uid("user"), name: "Rodrigue Tchinda", email: "finance.cedres@groupescolaire.cm",
       passwordHash: pw("finance1234"), role: "finance", status: "active", schoolId: cedres.id,
+    },
+    {
+      id: uid("user"), name: "Intendant Cèdres", email: "intendance.cedres@groupescolaire.cm",
+      passwordHash: pw("intendance1234"), role: "logistics", status: "active", schoolId: cedres.id,
     },
     {
       id: uid("user"), name: "Hervé Djoumessi", email: "admin.fontaine@groupescolaire.cm",

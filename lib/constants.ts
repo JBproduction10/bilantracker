@@ -1,4 +1,4 @@
-import type { Role, FeeStatus, ExpenseCategory, PaymentMethod, AdjustmentReason, UserStatus, AuditAction, EmployeeStatus } from "./types";
+import type { Role, FeeStatus, ExpenseCategory, PaymentMethod, AdjustmentReason, UserStatus, AuditAction, EmployeeStatus, PurchaseOrderStatus, InventoryCategory, StockMovementType, SalaryGridStatus } from "./types";
 
 export const ROLE_LABELS: Record<Role, string> = {
   super_admin: "Super Admin",
@@ -6,6 +6,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   school_admin: "School Admin",
   finance: "Finance",
   teacher: "Teacher",
+  treasury: "Bonté Service (Trésorerie)",
+  logistics: "Intendance & Logistique",
 };
 
 export const FEE_STATUS_LABELS: Record<FeeStatus, string> = {
@@ -36,7 +38,7 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "fuel", "credit", "renovation", "supplies", "utilities", "maintenance", "other",
 ];
 
-export const ROLES: Role[] = ["super_admin", "promoter", "school_admin", "finance", "teacher"];
+export const ROLES: Role[] = ["super_admin", "promoter", "school_admin", "finance", "teacher", "treasury", "logistics"];
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: "Espèces",
@@ -106,6 +108,58 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "receipt.send": "Reçu envoyé",
   "receipt_request.send": "Demande de reçu traitée",
   "receipt_request.decline": "Demande de reçu refusée",
+  "purchase_order.submit": "Bon de commande soumis",
+  "purchase_order.validate": "Bon de commande validé",
+  "purchase_order.reject": "Bon de commande refusé",
+  "purchase_order.execute": "Bon de commande exécuté",
+  "inventory_item.add": "Article de stock ajouté",
+  "inventory_item.remove": "Article de stock supprimé",
+  "stock_movement.add": "Mouvement de stock enregistré",
+  "salary_grid.submit": "Grille salariale envoyée",
+  "salary_grid.apply": "Grille salariale appliquée et fiches générées",
+  "salary_grid.reject": "Grille salariale refusée",
+};
+
+export const SALARY_GRID_STATUS_LABELS: Record<SalaryGridStatus, string> = {
+  pending: "En attente",
+  applied: "Appliquée",
+  rejected: "Refusée",
+};
+
+export const SALARY_GRID_STATUS_PILL: Record<SalaryGridStatus, string> = {
+  pending: "pill-draft",
+  applied: "pill-sent",
+  rejected: "pill-inactive",
+};
+
+export const PURCHASE_ORDER_STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
+  pending: "En attente",
+  validated: "Validé",
+  rejected: "Refusé",
+  executed: "Exécuté",
+};
+
+export const PURCHASE_ORDER_STATUS_PILL: Record<PurchaseOrderStatus, string> = {
+  pending: "pill-draft",
+  validated: "pill-leave",
+  rejected: "pill-inactive",
+  executed: "pill-sent",
+};
+
+export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
+  uniform: "Uniformes",
+  shoes: "Chaussures",
+  sweater: "Pulls",
+  supplies: "Fournitures",
+  other: "Autre",
+};
+
+export const INVENTORY_CATEGORIES: InventoryCategory[] = ["uniform", "shoes", "sweater", "supplies", "other"];
+
+export const STOCK_MOVEMENT_TYPE_LABELS: Record<StockMovementType, string> = {
+  in: "Entrée (réception)",
+  sale: "Sortie (vente)",
+  adjustment: "Ajustement d'inventaire",
 };
 
 export const EMPLOYEE_STATUS_LABELS: Record<EmployeeStatus, string> = {

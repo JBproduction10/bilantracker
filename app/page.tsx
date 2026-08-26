@@ -12,7 +12,9 @@ const ROLE_HOME: Record<Role, string> = {
   promoter: "/dashboard",
   school_admin: "/dashboard",
   finance: "/dashboard",
-  teacher: "/my-payslips",
+  teacher: "/dashboard",
+  treasury: "/dashboard",
+  logistics: "/dashboard",
 };
 
 export default async function LandingPage() {

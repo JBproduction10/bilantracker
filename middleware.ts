@@ -9,15 +9,19 @@ const ROLE_HOME: Record<Role, string> = {
   school_admin: "/dashboard",
   finance: "/dashboard",
   teacher: "/my-payslips",
+  treasury: "/dashboard",
+  logistics: "/inventory",
 };
 
 /** Path prefixes each role is allowed into. "*" means everything under the matcher. */
 const ROLE_ALLOWED: Record<Role, string[]> = {
   super_admin: ["*"],
-  promoter: ["/dashboard", "/reports", "/audit-log"],
-  school_admin: ["/dashboard", "/students", "/receipt-requests", "/expenses", "/employees", "/departments", "/payslips", "/send", "/fields", "/audit-log"],
+  promoter: ["/dashboard", "/reports", "/audit-log", "/purchase-orders", "/salary-grid"],
+  school_admin: ["/dashboard", "/students", "/receipt-requests", "/expenses", "/employees", "/departments", "/payslips", "/send", "/fields", "/audit-log", "/purchase-orders", "/inventory", "/salary-grid"],
   finance: ["/dashboard", "/payslips"],
   teacher: ["/my-payslips"],
+  treasury: ["/dashboard", "/purchase-orders", "/reports", "/audit-log", "/salary-grid"],
+  logistics: ["/inventory"],
 };
 
 export async function middleware(req: NextRequest) {
@@ -58,5 +62,8 @@ export const config = {
     "/reports/:path*",
     "/audit-log/:path*",
     "/my-payslips/:path*",
+    "/purchase-orders/:path*",
+    "/inventory/:path*",
+    "/salary-grid/:path*",
   ],
 };

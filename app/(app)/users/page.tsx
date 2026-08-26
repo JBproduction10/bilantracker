@@ -126,7 +126,7 @@ function AddUserModal({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const needsSchool = role === "school_admin" || role === "finance" || role === "teacher";
+  const needsSchool = role === "school_admin" || role === "finance" || role === "teacher" || role === "logistics";
   const selectedSchool = schools.find((s) => s.id === schoolId);
 
   async function submit() {
