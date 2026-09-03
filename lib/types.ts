@@ -378,7 +378,8 @@ export type NotificationType =
   | "purchase_order.submitted"
   | "purchase_order.decided"
   | "salary_grid.submitted"
-  | "salary_grid.decided";
+  | "salary_grid.decided"
+  | "user.invited";
 
 /**
  * One row per recipient account — a notification fanned out to three

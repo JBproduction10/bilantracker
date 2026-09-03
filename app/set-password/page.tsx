@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { GraduationCap, CheckCircle2 } from "lucide-react";
 
 interface CheckResult {
@@ -49,7 +50,17 @@ function SetPasswordForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Quelque chose s'est mal passé.");
       setDone(true);
-      setTimeout(() => router.push("/login"), 2000);
+      // Sign the person in immediately — they just proved ownership of the
+      // invite link, no reason to make them re-type credentials right away.
+      // Middleware sends each role to its own landing page, so /dashboard
+      // is a safe universal target even for roles that live elsewhere.
+      const signInRes = await signIn("credentials", { email: check?.email, password, redirect: false });
+      if (signInRes?.error) {
+        setTimeout(() => router.push("/login"), 1500);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -93,7 +104,7 @@ function SetPasswordForm() {
 
         {done && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--green-dark)", fontSize: 13.5 }}>
-            <CheckCircle2 size={18} /> Mot de passe créé. Redirection vers la connexion…
+            <CheckCircle2 size={18} /> Mot de passe créé. Connexion en cours…
           </div>
         )}
       </div>
