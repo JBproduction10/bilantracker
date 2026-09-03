@@ -1,10 +1,10 @@
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
-import { canManageSchool, requireCondition } from "@/lib/authz";
+import { canSendPayslips, requireCondition } from "@/lib/authz";
 
 export const POST = withAuth(async (_req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canSendPayslips(user), "Seul le super admin peut envoyer les fiches de paie.");
   const result = await data.sendPayslip(params.sid, params.pid);
   await logAudit({
     actor: user, action: "payslip.send", schoolId: params.sid,

@@ -78,6 +78,8 @@ export const api = {
       method: "POST",
       body: { period },
     }),
+  notifyPayslipsReady: (sid: string, period: string) =>
+    request<{ ok: boolean }>(`/schools/${sid}/payslips/notify-ready`, { method: "POST", body: { period } }),
 
   listStudents: (sid: string, period: string) =>
     request<StudentWithLedger[]>(`/schools/${sid}/students?period=${encodeURIComponent(period)}`),

@@ -418,7 +418,7 @@ export type AuditAction =
   | "employee.add" | "employee.remove" | "employee.update"
   | "department.add" | "department.remove" | "department.update"
   | "field.add" | "field.update" | "field.remove"
-  | "payslip.generate" | "payslip.status" | "payslip.send" | "payslip.mark_all_sent" | "payslip.send_all"
+  | "payslip.generate" | "payslip.status" | "payslip.send" | "payslip.mark_all_sent" | "payslip.send_all" | "payslip.notify_ready"
   | "school.create" | "school.update" | "school.delete"
   | "user.create" | "user.remove" | "user.resend_invite"
   | "receipt.send" | "receipt_request.send" | "receipt_request.decline"
@@ -431,7 +431,8 @@ export type NotificationType =
   | "purchase_order.decided"
   | "salary_grid.submitted"
   | "salary_grid.decided"
-  | "user.invited";
+  | "user.invited"
+  | "payslips.ready_to_send";
 
 /**
  * One row per recipient account — a notification fanned out to three

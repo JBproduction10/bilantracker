@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Send, SlidersHorizontal, Eye, X, Printer } from "lucide-react";
+import { Send, SlidersHorizontal, Eye, X, Printer, BellRing } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
@@ -11,12 +11,21 @@ import type { School, Employee, Payslip } from "@/lib/types";
 export default function Payslips() {
   const { school } = useSchools();
   const { data: session } = useSession();
-  const canManage = session?.user?.role !== "finance";
+  const role = session?.user?.role;
+  // Generating draft payslips is still something a school admin (or the
+  // super admin) can do. Actually sending them — single, all, or marking
+  // one as sent by hand — is the super admin's call alone; a school admin
+  // instead notifies the super admin once their employees are ready.
+  const canManage = role !== "finance";
+  const canSend = role === "super_admin";
+  const isSchoolAdmin = role === "school_admin";
   const [period, setPeriod] = useState(PERIODS[PERIODS.length - 1]);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [showGen, setShowGen] = useState(false);
   const [preview, setPreview] = useState<Payslip | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notifying, setNotifying] = useState(false);
+  const [notified, setNotified] = useState(false);
 
   const load = async () => {
     if (!school) return;
@@ -26,7 +35,7 @@ export default function Payslips() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [school, period]);
+  useEffect(() => { load(); setNotified(false); /* eslint-disable-next-line */ }, [school, period]);
 
   if (!school) return null;
 
@@ -38,6 +47,16 @@ export default function Payslips() {
   async function markAllSent() {
     await api.markAllSent(school!.id, period);
     await load();
+  }
+
+  async function notifyReady() {
+    setNotifying(true);
+    try {
+      await api.notifyPayslipsReady(school!.id, period);
+      setNotified(true);
+    } finally {
+      setNotifying(false);
+    }
   }
 
   async function toggleStatus(p: Payslip) {
@@ -58,15 +77,20 @@ export default function Payslips() {
           <select className="select-el" style={{ width: 150 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
             {PERIODS.map((p) => <option key={p}>{p}</option>)}
           </select>
+          {canSend && (
+            <button className="btn btn-outline" disabled={draftCount === 0} onClick={markAllSent}>
+              <Send size={14} /> Tout marquer envoyé {draftCount > 0 && draftCount}
+            </button>
+          )}
+          {isSchoolAdmin && (
+            <button className="btn btn-outline" disabled={payslips.length === 0 || notifying || notified} onClick={notifyReady}>
+              <BellRing size={14} /> {notified ? "Super admin notifié" : notifying ? "Envoi…" : "Notifier le super admin"}
+            </button>
+          )}
           {canManage && (
-            <>
-              <button className="btn btn-outline" disabled={draftCount === 0} onClick={markAllSent}>
-                <Send size={14} /> Tout marquer envoyé {draftCount > 0 && draftCount}
-              </button>
-              <button className="btn btn-primary" onClick={() => setShowGen(true)}>
-                <SlidersHorizontal size={14} /> Générer les fiches
-              </button>
-            </>
+            <button className="btn btn-primary" onClick={() => setShowGen(true)}>
+              <SlidersHorizontal size={14} /> Générer les fiches
+            </button>
           )}
         </div>
       </div>
@@ -120,7 +144,7 @@ export default function Payslips() {
           payslip={preview}
           employee={school.employees.find((e) => e.id === preview.employeeId)}
           school={school}
-          canManage={canManage}
+          canManage={canSend}
           onClose={() => setPreview(null)}
           onToggleStatus={() => toggleStatus(preview)}
         />

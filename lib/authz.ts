@@ -44,6 +44,22 @@ export function canViewPayslips(user: SessionUser, schoolId: string): boolean {
   return false;
 }
 
+/**
+ * Sending payslips — a single one, all drafts for a period, or marking a
+ * status by hand — is deliberately narrower than canManageSchool. School
+ * admins still generate drafts, but only the super admin actually sends;
+ * the school admin's role in that step is to notify readiness instead
+ * (see canNotifyPayslipsReady).
+ */
+export function canSendPayslips(user: SessionUser): boolean {
+  return user.role === "super_admin";
+}
+
+/** A school admin (or the super admin) can tell the super admin their school's employees are ready for a pay period. */
+export function canNotifyPayslipsReady(user: SessionUser, schoolId: string): boolean {
+  return canManageSchool(user, schoolId);
+}
+
 /** A school admin (or super admin) can submit a "bon de commande" for their own school. */
 export function canSubmitPurchaseOrder(user: SessionUser, schoolId: string): boolean {
   return canManageSchool(user, schoolId);
