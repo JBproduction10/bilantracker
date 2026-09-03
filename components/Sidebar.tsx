@@ -3,9 +3,9 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import {
-  LayoutDashboard, Users, Building2, Landmark, SlidersHorizontal, FileText, Send, LogOut,
+  LayoutDashboard, Users, Building2, Landmark, SlidersHorizontal, FileText, Send,
   GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History, ClipboardList, Package, Coins,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -175,9 +175,6 @@ export default function Sidebar() {
           <div style={{ fontSize: 12.5, fontWeight: 700 }}>{user?.name}</div>
           <div style={{ fontSize: 11, color: "var(--muted)" }}>{user?.email}</div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => signOut({ callbackUrl: "/login" })} title="Se déconnecter">
-          <LogOut size={14} />
-        </button>
       </div>
     </div>
   );
