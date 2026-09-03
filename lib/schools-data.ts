@@ -11,6 +11,7 @@ import type {
   ReceiptRequest, ReceiptRequestInput, SendReceiptInput, ReceiptRequestStatus, PublicSchool,
   PurchaseOrder, PurchaseOrderInput, PurchaseOrderDecisionInput, PurchaseOrderStatus,
   InventoryItem, InventoryItemInput, StockMovement, StockMovementInput, InventorySummary,
+  NetworkInventoryOverview, NetworkInventorySchoolSummary, NetworkInventoryStockRow, NetworkStockMovementRow,
   SalaryGridSubmission, SalaryGridSubmissionInput, SalaryGridDecisionInput, SalaryGridStatus, SalaryGridEntry,
 } from "./types";
 
@@ -517,6 +518,10 @@ export function computeSchoolReport(school: School, period: string): SchoolRepor
   const studentsUnpaid = ledgers.filter((l) => l.status === "unpaid").length;
 
   const totalDue = ledgers.reduce((s, l) => s + l.amountDue, 0);
+  // Outstanding is what's still owed as of the status period's ledger — mirrors
+  // the paid/partial/unpaid split above rather than the raw income vs. due gap,
+  // so it stays correct even for period === "all".
+  const totalOutstanding = ledgers.reduce((s, l) => s + Math.max(l.balance, 0), 0);
 
   // Money actually collected is a real sum over the ledger — every period's
   // worth of payments if "all", or just the payments logged in this period.
@@ -545,6 +550,7 @@ export function computeSchoolReport(school: School, period: string): SchoolRepor
     studentsSocialCase,
     totalDue,
     totalIncome,
+    totalOutstanding,
     totalSalariesSent,
     totalSalariesDraft,
     totalExpenses,
@@ -562,6 +568,89 @@ export async function getSchoolReport(sid: string, period: string): Promise<Scho
 export async function getAllReports(period: string): Promise<SchoolReport[]> {
   const schools = await listSchools();
   return schools.map((s) => computeSchoolReport(s, period));
+}
+
+// ---------- Network-wide inventory (promoter view of every school's "Intendance" stock) ----------
+export function computeNetworkInventoryOverview(schools: School[], period: string): NetworkInventoryOverview {
+  const summaries: NetworkInventorySchoolSummary[] = [];
+  const stockByClient: Record<string, NetworkInventoryStockRow[]> = {};
+  const allDeliveries: NetworkStockMovementRow[] = [];
+  const allSales: NetworkStockMovementRow[] = [];
+  const allVariances: NetworkStockMovementRow[] = [];
+
+  for (const school of schools) {
+    const inPeriod = period === "all" ? school.stockMovements : school.stockMovements.filter((m) => m.period === period);
+    const delivered = inPeriod.filter((m) => m.type === "in");
+    const sold = inPeriod.filter((m) => m.type === "sale");
+    const adjustments = inPeriod.filter((m) => m.type === "adjustment");
+
+    summaries.push({
+      schoolId: school.id,
+      schoolName: school.name,
+      color: school.color,
+      unitsDelivered: delivered.reduce((s, m) => s + m.quantity, 0),
+      unitsSold: sold.reduce((s, m) => s + m.quantity, 0),
+      unitsOnHand: school.inventoryItems.reduce((s, i) => s + i.quantityOnHand, 0),
+      revenue: sold.reduce((s, m) => s + (m.amount || 0), 0),
+      varianceCount: adjustments.length,
+    });
+
+    const rowsByItem = new Map<string, NetworkInventoryStockRow>();
+    for (const item of school.inventoryItems) {
+      rowsByItem.set(item.id, {
+        category: item.category,
+        itemLabel: item.name,
+        delivered: 0,
+        sold: 0,
+        stock: item.quantityOnHand,
+        revenue: 0,
+      });
+    }
+    for (const m of delivered) {
+      const row = rowsByItem.get(m.itemId);
+      if (row) row.delivered += m.quantity;
+    }
+    for (const m of sold) {
+      const row = rowsByItem.get(m.itemId);
+      if (row) { row.sold += m.quantity; row.revenue += m.amount || 0; }
+    }
+    stockByClient[school.id] = Array.from(rowsByItem.values());
+
+    const toRow = (m: StockMovement): NetworkStockMovementRow => ({
+      id: m.id,
+      schoolId: school.id,
+      schoolName: school.name,
+      category: school.inventoryItems.find((i) => i.id === m.itemId)?.category || "other",
+      itemLabel: m.itemName,
+      quantity: m.quantity,
+      unitPrice: m.unitPrice,
+      amount: m.amount,
+      date: m.date,
+      note: m.note,
+      recordedBy: m.recordedBy,
+      recordedAt: m.recordedAt,
+    });
+
+    allDeliveries.push(...delivered.map(toRow));
+    allSales.push(...sold.map(toRow));
+    allVariances.push(...adjustments.map(toRow));
+  }
+
+  const byRecent = (a: NetworkStockMovementRow, b: NetworkStockMovementRow) => b.recordedAt - a.recordedAt;
+
+  return {
+    period,
+    summaries,
+    stockByClient,
+    recentDeliveries: allDeliveries.sort(byRecent).slice(0, 8),
+    recentSales: allSales.sort(byRecent).slice(0, 8),
+    variances: allVariances.sort(byRecent).slice(0, 20),
+  };
+}
+
+export async function getNetworkInventoryOverview(period: string): Promise<NetworkInventoryOverview> {
+  const schools = await listSchools();
+  return computeNetworkInventoryOverview(schools, period);
 }
 
 // ---------- Receipt requests (parents have no account — this is their only path to a copy) ----------

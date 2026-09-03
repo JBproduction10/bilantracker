@@ -6,6 +6,7 @@ import type {
   AuditEntry, SendAllDraftsResponse,
   PurchaseOrder, PurchaseOrderInput, PurchaseOrderDecisionInput, PurchaseOrderStatus,
   InventoryItem, InventoryItemInput, StockMovement, StockMovementInput, InventorySummary,
+  NetworkInventoryOverview,
   SalaryGridSubmission, SalaryGridSubmissionInput, SalaryGridDecisionInput, SalaryGridStatus,
 } from "./types";
 
@@ -155,6 +156,8 @@ export const api = {
     request<StockMovement>(`/schools/${sid}/inventory/movements`, { method: "POST", body }),
   getInventorySummary: (sid: string, period: string) =>
     request<InventorySummary>(`/schools/${sid}/inventory/summary?period=${encodeURIComponent(period)}`),
+  getNetworkInventoryOverview: (period: string) =>
+    request<NetworkInventoryOverview>(`/inventory/network-summary?period=${encodeURIComponent(period)}`),
 
   listSalaryGridSubmissions: (sid: string, status?: SalaryGridStatus) =>
     request<SalaryGridSubmission[]>(`/schools/${sid}/salary-grid${status ? `?status=${status}` : ""}`),

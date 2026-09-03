@@ -351,11 +351,63 @@ export interface SchoolReport {
   studentsSocialCase: number;
   totalDue: number;
   totalIncome: number;
+  /** Sum of unpaid balances still owed for the period (fees invoiced but not yet collected). */
+  totalOutstanding: number;
   totalSalariesSent: number;
   totalSalariesDraft: number;
   totalExpenses: number;
   totalOutflow: number;
   netBalance: number;
+}
+
+/**
+ * Network-wide "Intendance" (uniforms/supplies) figures for one school, used
+ * by the promoter's consolidated dashboard — same shape of question as the
+ * financial report, but for physical stock instead of money.
+ */
+export interface NetworkInventorySchoolSummary {
+  schoolId: string;
+  schoolName: string;
+  color: string;
+  unitsDelivered: number;
+  unitsSold: number;
+  unitsOnHand: number;
+  revenue: number;
+  varianceCount: number;
+}
+
+export interface NetworkInventoryStockRow {
+  category: InventoryCategory;
+  itemLabel: string;
+  delivered: number;
+  sold: number;
+  stock: number;
+  revenue: number;
+}
+
+/** One stock movement, tagged with which school it belongs to, for the network-wide feed. */
+export interface NetworkStockMovementRow {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  category: InventoryCategory;
+  itemLabel: string;
+  quantity: number;
+  unitPrice?: number;
+  amount?: number;
+  date: string;
+  note?: string;
+  recordedBy?: string;
+  recordedAt: number;
+}
+
+export interface NetworkInventoryOverview {
+  period: string;
+  summaries: NetworkInventorySchoolSummary[];
+  stockByClient: Record<string, NetworkInventoryStockRow[]>;
+  recentDeliveries: NetworkStockMovementRow[];
+  recentSales: NetworkStockMovementRow[];
+  variances: NetworkStockMovementRow[];
 }
 
 export type AuditAction =
