@@ -271,7 +271,7 @@ export async function sendPayslip(sid: string, pid: string) {
   if (!employee) throw new Error("Employee not found.");
   const result = await sendPayslipEmail({
     to: employee.email, employeeName: employee.name, schoolName: school.name,
-    period: slip.period, net: slip.net,
+    period: slip.period, net: slip.net, schoolId: school.id,
   });
   slip.status = "sent";
   await col.replaceOne({ id: sid }, school);
@@ -308,7 +308,7 @@ export async function sendAllDrafts(sid: string, period: string): Promise<SendAl
     try {
       const result = await sendPayslipEmail({
         to: employee.email, employeeName: employee.name, schoolName: school.name,
-        period: slip.period, net: slip.net,
+        period: slip.period, net: slip.net, schoolId: school.id,
       });
       simulated = simulated || result.simulated;
       slip.status = "sent";
@@ -637,6 +637,7 @@ export async function sendReceipt(
     payments: ledger.payments.map((p) => ({ date: p.date, amount: p.amount, method: p.method })),
     totalPaid: ledger.amountPaid,
     amountDue: ledger.amountDue,
+    schoolId: school.id,
   });
 
   if (requestId) {

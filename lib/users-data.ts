@@ -59,7 +59,7 @@ export async function createUser({ name, email, role, schoolId, employeeId }: Us
   };
   await col.insertOne(user);
 
-  const result = await sendInviteEmail({ to: cleanEmail, name: user.name, roleLabel: ROLE_LABELS[role], schoolName, token: inviteToken });
+  const result = await sendInviteEmail({ to: cleanEmail, name: user.name, roleLabel: ROLE_LABELS[role], schoolName, token: inviteToken, schoolId });
   return { user: strip(user)!, invite: result };
 }
 
@@ -73,7 +73,7 @@ export async function resendInvite(id: string, schoolName?: string) {
   const inviteToken = newToken();
   await col.updateOne({ id }, { $set: { inviteToken, inviteTokenExpires: Date.now() + INVITE_TTL_MS } });
 
-  const result = await sendInviteEmail({ to: user.email, name: user.name, roleLabel: ROLE_LABELS[user.role], schoolName, token: inviteToken });
+  const result = await sendInviteEmail({ to: user.email, name: user.name, roleLabel: ROLE_LABELS[user.role], schoolName, token: inviteToken, schoolId: user.schoolId });
   return result;
 }
 
@@ -137,13 +137,13 @@ export async function requestPasswordReset(email: string): Promise<void> {
   if (user.status === "pending") {
     const inviteToken = newToken();
     await col.updateOne({ id: user.id }, { $set: { inviteToken, inviteTokenExpires: Date.now() + INVITE_TTL_MS } });
-    await sendInviteEmail({ to: user.email, name: user.name, roleLabel: ROLE_LABELS[user.role], token: inviteToken });
+    await sendInviteEmail({ to: user.email, name: user.name, roleLabel: ROLE_LABELS[user.role], token: inviteToken, schoolId: user.schoolId });
     return;
   }
 
   const resetToken = newToken();
   await col.updateOne({ id: user.id }, { $set: { resetToken, resetTokenExpires: Date.now() + RESET_TTL_MS } });
-  await sendPasswordResetEmail({ to: user.email, name: user.name, token: resetToken });
+  await sendPasswordResetEmail({ to: user.email, name: user.name, token: resetToken, schoolId: user.schoolId });
 }
 
 /** Looks up a password-reset token, without exposing anything sensitive — used to greet the person on the reset-password page. */

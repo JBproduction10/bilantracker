@@ -15,7 +15,7 @@ const ROLE_HOME: Record<Role, string> = {
 
 /** Path prefixes each role is allowed into. "*" means everything under the matcher. */
 const ROLE_ALLOWED: Record<Role, string[]> = {
-  super_admin: ["*"],
+  super_admin: ["*"], // includes /settings
   promoter: ["/dashboard", "/reports", "/audit-log", "/purchase-orders", "/salary-grid"],
   school_admin: ["/dashboard", "/students", "/receipt-requests", "/expenses", "/employees", "/departments", "/payslips", "/send", "/fields", "/audit-log", "/purchase-orders", "/inventory", "/salary-grid"],
   finance: ["/dashboard", "/payslips"],
@@ -65,5 +65,6 @@ export const config = {
     "/purchase-orders/:path*",
     "/inventory/:path*",
     "/salary-grid/:path*",
+    "/settings/:path*",
   ],
 };

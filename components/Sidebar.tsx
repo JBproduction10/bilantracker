@@ -56,6 +56,10 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
         { href: "/audit-log", label: "Journal d'audit", icon: History },
       ],
     },
+    {
+      section: "Réglages",
+      items: [{ href: "/settings/email", label: "Email", icon: Mail }],
+    },
   ],
   promoter: [
     {
