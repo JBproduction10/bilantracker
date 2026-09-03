@@ -1,6 +1,8 @@
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
+import { notifyUsers } from "@/lib/notifications-data";
+import { listUserIdsByRole } from "@/lib/users-data";
 import { canDecideSalaryGrid, requireCondition } from "@/lib/authz";
 import type { AuditAction } from "@/lib/types";
 
@@ -25,6 +27,25 @@ export const PATCH = withAuth(async (req, { params }, user) => {
     targetType: "salary_grid", targetId: submission.id, targetLabel: submission.period,
     details: { status: submission.status, generatedCount: submission.generatedCount, sentCount: submission.sentCount },
   });
+
+  // Best-effort: let Bonté Service (who pushed the grid) and the school's
+  // own admin (whose payslips just moved) know the outcome.
+  try {
+    const [treasuryIds, schoolAdminIds] = await Promise.all([
+      listUserIdsByRole(["treasury"]),
+      listUserIdsByRole(["school_admin"], params.sid),
+    ]);
+    const verb = submission.status === "applied" ? "appliquée" : "rejetée";
+    await notifyUsers([...treasuryIds, ...schoolAdminIds], {
+      schoolId: params.sid,
+      type: "salary_grid.decided",
+      title: "Grille salariale mise à jour",
+      message: `La grille salariale pour ${submission.schoolName} — période ${submission.period} — a été ${verb}${submission.sentCount ? ` (${submission.sentCount} bulletins envoyés)` : ""}.`,
+      link: "/salary-grid",
+    });
+  } catch (notifyErr) {
+    console.error("Failed to notify of salary grid decision:", notifyErr);
+  }
 
   return json({ submission, sendResult });
 });

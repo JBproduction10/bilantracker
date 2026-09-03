@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSchools } from "@/context/SchoolContext";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function Topbar() {
   const { schools, school, setActiveId } = useSchools();
@@ -42,8 +43,11 @@ export default function Topbar() {
         )}
       </div>
 
-      <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
-        {session?.user?.name ? `Bonjour, ${session.user.name.split(" ")[0]}` : ""}
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <NotificationBell />
+        <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+          {session?.user?.name ? `Bonjour, ${session.user.name.split(" ")[0]}` : ""}
+        </div>
       </div>
     </div>
   );

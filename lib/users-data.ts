@@ -6,7 +6,7 @@ import { uid } from "./uid";
 import { sendInviteEmail, sendPasswordResetEmail } from "./mailer";
 import { ROLE_LABELS } from "./constants";
 import { assertValidEmail } from "./validation";
-import type { AppUser, UserInput, SetPasswordInput, ResetPasswordInput } from "./types";
+import type { AppUser, Role, UserInput, SetPasswordInput, ResetPasswordInput } from "./types";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour — shorter than an invite, since the account is already active
@@ -31,6 +31,20 @@ export async function listUsers() {
   const col = await collection();
   const docs = await col.find({}).sort({ role: 1, name: 1 }).toArray();
   return docs.map((d) => strip(d)!);
+}
+
+/**
+ * Ids of every active account matching the given role(s), optionally
+ * narrowed to one school — used to fan out notifications (e.g. every
+ * school admin at a given school, or every treasury/super admin
+ * network-wide) without loading full user records.
+ */
+export async function listUserIdsByRole(roles: Role[], schoolId?: string): Promise<string[]> {
+  const col = await collection();
+  const filter: Record<string, unknown> = { role: { $in: roles }, status: "active" };
+  if (schoolId) filter.schoolId = schoolId;
+  const docs = await col.find(filter, { projection: { id: 1 } }).toArray();
+  return docs.map((d) => d.id);
 }
 
 /**

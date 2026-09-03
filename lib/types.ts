@@ -374,6 +374,34 @@ export type AuditAction =
   | "inventory_item.add" | "inventory_item.remove" | "stock_movement.add"
   | "salary_grid.submit" | "salary_grid.apply" | "salary_grid.reject";
 
+export type NotificationType =
+  | "purchase_order.submitted"
+  | "purchase_order.decided"
+  | "salary_grid.submitted"
+  | "salary_grid.decided";
+
+/**
+ * One row per recipient account — a notification fanned out to three
+ * people (e.g. every super admin on a new purchase order) is three rows,
+ * each with its own `read` state, rather than one row with a list of
+ * readers. Simpler to query ("my unread count") at the cost of some
+ * duplication, which is fine at this volume.
+ */
+export interface Notification {
+  id: string;
+  /** Which account this row is for. */
+  userId: string;
+  /** School this relates to, if any — absent for network-wide events. */
+  schoolId?: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  /** Where clicking the notification should take the user, e.g. "/purchase-orders". */
+  link?: string;
+  read: boolean;
+  createdAt: number;
+}
+
 /**
  * One entry in the audit trail: who did what, when, to which school, and
  * enough detail to mean something on its own without cross-referencing
