@@ -11,6 +11,7 @@ const ROLE_HOME: Record<Role, string> = {
   teacher: "/my-payslips",
   treasury: "/dashboard",
   logistics: "/inventory",
+  cashier: "/students",
 };
 
 /** Path prefixes each role is allowed into. "*" means everything under the matcher. */
@@ -22,6 +23,10 @@ const ROLE_ALLOWED: Record<Role, string[]> = {
   teacher: ["/my-payslips"],
   treasury: ["/dashboard", "/purchase-orders", "/reports", "/audit-log", "/salary-grid"],
   logistics: ["/inventory"],
+  // Caisse: the only school-level role that actually enrolls students and
+  // collects fees. Scoped narrowly, same as logistics — no dashboard, no
+  // employee/payroll/requisition access.
+  cashier: ["/students", "/receipt-requests", "/expenses"],
 };
 
 export async function middleware(req: NextRequest) {

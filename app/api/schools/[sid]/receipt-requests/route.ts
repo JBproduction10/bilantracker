@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
-import { canManageSchool, requireCondition } from "@/lib/authz";
+import { canManageSchool, canManageStudents, requireCondition } from "@/lib/authz";
 import { assertNotRateLimited, getClientIp } from "@/lib/rateLimit";
 
 // POST is deliberately public — a parent has no account, so this is the
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { sid: string
 }
 
 export const GET = withAuth(async (req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canManageSchool(user, params.sid) || canManageStudents(user, params.sid));
   const status = new URL(req.url).searchParams.get("status") || undefined;
   const list = await data.listReceiptRequests(params.sid, status as "pending" | "sent" | "declined" | undefined);
   return json(list);

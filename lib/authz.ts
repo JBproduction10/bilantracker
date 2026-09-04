@@ -27,14 +27,44 @@ export function canReadSchool(user: SessionUser, schoolId: string): boolean {
 }
 
 /**
- * Can add/edit/remove records for this school: students, expenses,
- * employees, departments, fields, payslip generation & sending.
- * Finance and teacher accounts are read-only.
+ * Can add/edit/remove employees, departments, fields, and generate/notify
+ * payslips for this school. Deliberately does NOT cover students, fee
+ * payments/adjustments, or expenses — see canManageStudents and
+ * canManageExpenses. Finance and teacher accounts are read-only.
  */
 export function canManageSchool(user: SessionUser, schoolId: string): boolean {
   if (user.role === "super_admin") return true;
   if (user.role === "school_admin") return user.schoolId === schoolId;
   return false;
+}
+
+/**
+ * Enroll, edit, or remove students; record or void fee payments; set or
+ * remove fee adjustments (social case, discount). This is the separation
+ * of duties the "Caisse" account exists for: the cashier is the only
+ * school-level role that actually touches student/fee records, so theft
+ * or errors trace to one person. A school admin can still see this data
+ * (via canReadSchool) but cannot write it.
+ */
+export function canManageStudents(user: SessionUser, schoolId: string): boolean {
+  if (user.role === "super_admin") return true;
+  if (user.role === "cashier") return user.schoolId === schoolId;
+  return false;
+}
+
+/** Log, edit, or remove day-to-day school expenses — same cashier-only split as canManageStudents. */
+export function canManageExpenses(user: SessionUser, schoolId: string): boolean {
+  return canManageStudents(user, schoolId);
+}
+
+/**
+ * Emailing a fee receipt doesn't change any financial record, so it's
+ * intentionally broader than canManageStudents: either the cashier who
+ * collected the payment, or the school admin following up with a parent,
+ * can send one.
+ */
+export function canSendReceipts(user: SessionUser, schoolId: string): boolean {
+  return canManageStudents(user, schoolId) || canManageSchool(user, schoolId);
 }
 
 /** Can view payslips for this school (finance: all payslips; teacher: only their own, enforced separately). */

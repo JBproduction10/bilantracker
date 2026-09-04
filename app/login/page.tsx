@@ -22,6 +22,7 @@ const DEMO_ACCOUNTS = [
     desc: "Achats, stock & logistique",
   },
   { label: "Admin d'école — Les Cèdres", email: "admin.cedres@groupescolaire.cm", password: "ecole1234", desc: "Élèves, dépenses, paie" },
+  { label: "Caisse — Les Cèdres", email: "caisse.cedres@groupescolaire.cm", password: "caisse1234", desc: "Inscriptions & encaissement des frais" },
   { label: "Finance — Les Cèdres", email: "finance.cedres@groupescolaire.cm", password: "finance1234", desc: "Consultation & impression des fiches" },
   { label: "Enseignant — La Fontaine", email: "enseignant.fontaine@groupescolaire.cm", password: "enseignant1234", desc: "Ses fiches de paie uniquement" },
 ];

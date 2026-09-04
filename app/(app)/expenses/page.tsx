@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Plus, Trash2, Pencil, X } from "lucide-react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
@@ -10,6 +11,11 @@ import type { Expense, ExpenseCategory } from "@/lib/types";
 
 export default function ExpensesPage() {
   const { school } = useSchools();
+  const { data: session } = useSession();
+  // Logging expenses is a cashier duty (same separation of duties as
+  // student/fee records) — a school admin sees this list read-only.
+  const role = session?.user?.role;
+  const canEdit = role === "cashier" || role === "super_admin";
   const [period, setPeriod] = useState(PERIODS[2]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -49,7 +55,9 @@ export default function ExpensesPage() {
           <select className="select-el" style={{ width: 150 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
             {PERIODS.map((p) => <option key={p}>{p}</option>)}
           </select>
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter une dépense</button>
+          {canEdit && (
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter une dépense</button>
+          )}
         </div>
       </div>
 
@@ -74,8 +82,12 @@ export default function ExpensesPage() {
                 <td style={{ fontWeight: 600 }}>{e.label}{e.note ? <span style={{ color: "var(--muted)", fontWeight: 400 }}> — {e.note}</span> : null}</td>
                 <td className="mono" style={{ color: "var(--red)" }}>{money(-e.amount)}</td>
                 <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(e)}><Pencil size={13} /></button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => removeExpense(e.id)}><Trash2 size={14} /></button>
+                  {canEdit && (
+                    <>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(e)}><Pencil size={13} /></button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => removeExpense(e.id)}><Trash2 size={14} /></button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

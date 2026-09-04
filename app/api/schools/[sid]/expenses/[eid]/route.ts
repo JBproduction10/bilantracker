@@ -1,10 +1,10 @@
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
-import { canManageSchool, requireCondition } from "@/lib/authz";
+import { canManageExpenses, requireCondition } from "@/lib/authz";
 
 export const PUT = withAuth(async (req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canManageExpenses(user, params.sid));
   const body = await req.json();
   const expense = await data.updateExpense(params.sid, params.eid, body);
   await logAudit({
@@ -16,7 +16,7 @@ export const PUT = withAuth(async (req, { params }, user) => {
 });
 
 export const DELETE = withAuth(async (_req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canManageExpenses(user, params.sid));
   const school = await data.getSchool(params.sid);
   const removed = school?.expenses.find((e) => e.id === params.eid);
   await data.removeExpense(params.sid, params.eid);

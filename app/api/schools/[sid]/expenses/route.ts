@@ -1,7 +1,7 @@
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
-import { canReadSchool, canManageSchool, requireCondition } from "@/lib/authz";
+import { canReadSchool, canManageExpenses, requireCondition } from "@/lib/authz";
 
 export const GET = withAuth(async (req, { params }, user) => {
   requireCondition(canReadSchool(user, params.sid));
@@ -11,7 +11,7 @@ export const GET = withAuth(async (req, { params }, user) => {
 });
 
 export const POST = withAuth(async (req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canManageExpenses(user, params.sid));
   const body = await req.json();
   const expense = await data.addExpense(params.sid, body, user.name || user.email || undefined);
   await logAudit({

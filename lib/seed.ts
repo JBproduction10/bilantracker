@@ -527,6 +527,12 @@ async function seedUsers(schools: School[]) {
       passwordHash: pw("finance1234"), role: "finance", status: "active", schoolId: cedres.id,
     },
     {
+      // Caisse — the only account that enrolls students and updates fee
+      // status on collection; separated from school_admin by design.
+      id: uid("user"), name: "Caissière Cèdres", email: "caisse.cedres@groupescolaire.cm",
+      passwordHash: pw("caisse1234"), role: "cashier", status: "active", schoolId: cedres.id,
+    },
+    {
       id: uid("user"), name: "Intendant Cèdres", email: "intendance.cedres@groupescolaire.cm",
       passwordHash: pw("intendance1234"), role: "logistics", status: "active", schoolId: cedres.id,
     },

@@ -139,6 +139,16 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
       items: [{ href: "/inventory", label: "Fournitures & stock", icon: Package }],
     },
   ],
+  cashier: [
+    {
+      section: "Caisse",
+      items: [
+        { href: "/students", label: "Élèves", icon: GraduationCap },
+        { href: "/receipt-requests", label: "Demandes de reçus", icon: Mail },
+        { href: "/expenses", label: "Dépenses", icon: Wallet },
+      ],
+    },
+  ],
 };
 
 export default function Sidebar() {

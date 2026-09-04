@@ -1,10 +1,10 @@
 import { withAuth } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
-import { canManageSchool, requireCondition } from "@/lib/authz";
+import { canManageStudents, requireCondition } from "@/lib/authz";
 
 export const DELETE = withAuth(async (_req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canManageStudents(user, params.sid));
   const school = await data.getSchool(params.sid);
   const removed = school?.feeAdjustments.find((a) => a.id === params.aid);
   const student = school?.students.find((s) => s.id === removed?.studentId);

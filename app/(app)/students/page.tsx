@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Plus, Search, Trash2, Pencil, X, Wallet, History, Mail } from "lucide-react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
@@ -11,6 +12,12 @@ import type { StudentWithLedger, FeeStatus, Payment, FeeAdjustment, PaymentMetho
 
 export default function StudentsPage() {
   const { school } = useSchools();
+  const { data: session } = useSession();
+  // Enrolling students and touching fee records is the cashier's job —
+  // separation of duties. Everyone else who can reach this page (school
+  // admin, super admin) sees the same data read-only.
+  const role = session?.user?.role;
+  const canEdit = role === "cashier" || role === "super_admin";
   const [period, setPeriod] = useState(PERIODS[PERIODS.length - 1]);
   const [students, setStudents] = useState<StudentWithLedger[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +70,9 @@ export default function StudentsPage() {
           <select className="select-el" style={{ width: 160 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
             {PERIODS.map((p) => <option key={p}>{p}</option>)}
           </select>
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un élève</button>
+          {canEdit && (
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un élève</button>
+          )}
         </div>
       </div>
 
@@ -113,10 +122,16 @@ export default function StudentsPage() {
                 <td className="mono" style={{ color: s.ledger.balance > 0 ? "var(--red)" : "var(--green-dark)" }}>{money(s.ledger.balance)}</td>
                 <td><span className={"pill " + FEE_STATUS_PILL[s.ledger.status]}>{FEE_STATUS_LABELS[s.ledger.status]}</span></td>
                 <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                  <button className="btn btn-outline btn-sm" onClick={() => setPayTarget(s)}><Wallet size={13} /> Paiement</button>
+                  {canEdit && (
+                    <button className="btn btn-outline btn-sm" onClick={() => setPayTarget(s)}><Wallet size={13} /> Paiement</button>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => setLedgerTarget(s)}><History size={13} /></button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(s)}><Pencil size={13} /></button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => removeStudent(s.id)}><Trash2 size={14} /></button>
+                  {canEdit && (
+                    <>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(s)}><Pencil size={13} /></button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => removeStudent(s.id)}><Trash2 size={14} /></button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -140,7 +155,7 @@ export default function StudentsPage() {
       )}
       {ledgerTarget && (
         <LedgerModal
-          schoolId={school.id} student={ledgerTarget} color={school.color}
+          schoolId={school.id} student={ledgerTarget} color={school.color} canEdit={canEdit}
           onClose={() => setLedgerTarget(null)}
           onChanged={load}
         />
@@ -319,8 +334,8 @@ function AddPaymentModal({
 
 /** Full transaction history for a student: every payment ever logged, plus any due-amount adjustments. */
 function LedgerModal({
-  schoolId, student, color, onClose, onChanged,
-}: { schoolId: string; student: Student; color: string; onClose: () => void; onChanged: () => void | Promise<void> }) {
+  schoolId, student, color, canEdit, onClose, onChanged,
+}: { schoolId: string; student: Student; color: string; canEdit: boolean; onClose: () => void; onChanged: () => void | Promise<void> }) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [adjustments, setAdjustments] = useState<FeeAdjustment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -392,7 +407,9 @@ function LedgerModal({
                 {adj && (
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 6 }}>
                     Ajustement : {ADJUSTMENT_REASON_LABELS[adj.reason]} — dû fixé à {money(adj.amountDue)}
-                    <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6, padding: "2px 6px" }} onClick={() => removeAdjustment(adj.id)}>Retirer</button>
+                    {canEdit && (
+                      <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6, padding: "2px 6px" }} onClick={() => removeAdjustment(adj.id)}>Retirer</button>
+                    )}
                   </div>
                 )}
                 {list.map((p) => (
@@ -404,7 +421,9 @@ function LedgerModal({
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span className="mono">{money(p.amount)}</span>
-                      <button className="btn btn-ghost btn-sm" onClick={() => voidPayment(p.id)}><Trash2 size={12} /></button>
+                      {canEdit && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => voidPayment(p.id)}><Trash2 size={12} /></button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -415,18 +434,22 @@ function LedgerModal({
           {adjustments.filter((a) => !byPeriod.has(a.period)).map((adj) => (
             <div key={adj.id} style={{ marginBottom: 14, fontSize: 12.5, color: "var(--muted)" }}>
               {adj.period} — {ADJUSTMENT_REASON_LABELS[adj.reason]}, dû fixé à {money(adj.amountDue)}, aucun paiement encore.
-              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6, padding: "2px 6px" }} onClick={() => removeAdjustment(adj.id)}>Retirer</button>
+              {canEdit && (
+                <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6, padding: "2px 6px" }} onClick={() => removeAdjustment(adj.id)}>Retirer</button>
+              )}
             </div>
           ))}
 
-          {!showAdjust ? (
-            <button className="btn btn-outline btn-sm" onClick={() => setShowAdjust(true)}>Ajuster le montant dû (cas social, remise)</button>
-          ) : (
-            <AdjustmentForm
-              schoolId={schoolId} studentId={student.id} monthlyFee={student.monthlyFee}
-              onCancel={() => setShowAdjust(false)}
-              onSaved={async () => { setShowAdjust(false); await load(); await onChanged(); }}
-            />
+          {canEdit && (
+            !showAdjust ? (
+              <button className="btn btn-outline btn-sm" onClick={() => setShowAdjust(true)}>Ajuster le montant dû (cas social, remise)</button>
+            ) : (
+              <AdjustmentForm
+                schoolId={schoolId} studentId={student.id} monthlyFee={student.monthlyFee}
+                onCancel={() => setShowAdjust(false)}
+                onSaved={async () => { setShowAdjust(false); await load(); await onChanged(); }}
+              />
+            )
           )}
         </div>
         <div className="modal-footer">

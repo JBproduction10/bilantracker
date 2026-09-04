@@ -1,10 +1,10 @@
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
-import { canManageSchool, requireCondition } from "@/lib/authz";
+import { canManageSchool, canManageStudents, requireCondition } from "@/lib/authz";
 
 export const POST = withAuth(async (req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canManageSchool(user, params.sid) || canManageStudents(user, params.sid));
   const { studentId, guardianEmail, guardianName } = await req.json();
   const school = await data.getSchool(params.sid);
   if (!school) return json({ error: "School not found." }, { status: 404 });

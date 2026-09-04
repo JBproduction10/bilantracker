@@ -2,7 +2,7 @@ import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
 import { currentPeriod } from "@/lib/fees";
-import { canReadSchool, canManageSchool, requireCondition } from "@/lib/authz";
+import { canReadSchool, canManageStudents, requireCondition } from "@/lib/authz";
 
 export const GET = withAuth(async (req, { params }, user) => {
   requireCondition(canReadSchool(user, params.sid));
@@ -12,7 +12,7 @@ export const GET = withAuth(async (req, { params }, user) => {
 });
 
 export const POST = withAuth(async (req, { params }, user) => {
-  requireCondition(canManageSchool(user, params.sid));
+  requireCondition(canManageStudents(user, params.sid));
   const body = await req.json();
   const student = await data.addStudent(params.sid, body);
   await logAudit({

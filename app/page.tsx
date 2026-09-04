@@ -15,6 +15,7 @@ const ROLE_HOME: Record<Role, string> = {
   teacher: "/dashboard",
   treasury: "/dashboard",
   logistics: "/dashboard",
+  cashier: "/dashboard",
 };
 
 export default async function LandingPage() {
