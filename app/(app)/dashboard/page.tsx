@@ -65,8 +65,8 @@ function SchoolDashboard() {
           <h1 className="page-title">Tableau de bord</h1>
           <p className="page-subtitle">Vue d&apos;ensemble de {school.name}</p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <select className="select-el" style={{ width: 160 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+        <div className="page-header-actions">
+          <select className="select-el page-header-select" value={period} onChange={(e) => setPeriod(e.target.value)}>
             {PERIODS.map((p) => <option key={p}>{p}</option>)}
           </select>
           <button className="btn btn-primary" onClick={() => router.push("/payslips")}>
@@ -102,7 +102,7 @@ function SchoolDashboard() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="grid-2">
         <div className="card" style={{ padding: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 14 }}>Personnel</div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 8 }}>
@@ -194,8 +194,8 @@ function PromoterDashboard() {
           <h1 className="page-title">Tableau de bord</h1>
           <p className="page-subtitle">Vue consolidée des {reports.length} écoles — {period}</p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <select className="select-el" style={{ width: 170 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+        <div className="page-header-actions">
+          <select className="select-el page-header-select" value={period} onChange={(e) => setPeriod(e.target.value)}>
             {PERIODS.map((p) => <option key={p}>{p}</option>)}
           </select>
           <button className="btn btn-outline" onClick={() => window.print()}>
@@ -204,7 +204,7 @@ function PromoterDashboard() {
         </div>
       </div>
 
-      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+      <div className="stat-grid">
         <div className="card stat"><div className="stat-label">Élèves (total)</div><div className="stat-value">{totals.students}</div></div>
         <div className="card stat"><div className="stat-label">Encaissé (total)</div><div className="stat-value mono">{money(totals.income)}</div></div>
         <div className="card stat"><div className="stat-label">Impayé (total)</div><div className="stat-value mono" style={{ color: "var(--red)" }}>{money(totals.outstanding)}</div></div>
@@ -283,7 +283,7 @@ function PromoterDashboard() {
           Stock d&apos;uniformes, chaussures et fournitures réseau — livraisons, ventes, et écarts constatés lors des comptages.
         </div>
 
-        <div className="stat-grid" style={{ gridTemplateColumns: "repeat(5,1fr)" }}>
+        <div className="stat-grid">
           <div className="card stat"><div className="stat-label">Unités livrées</div><div className="stat-value">{supplyTotals.delivered}</div></div>
           <div className="card stat"><div className="stat-label">Unités vendues</div><div className="stat-value">{supplyTotals.sold}</div></div>
           <div className="card stat"><div className="stat-label">Stock disponible</div><div className="stat-value">{supplyTotals.onHand}</div></div>
@@ -329,7 +329,7 @@ function PromoterDashboard() {
           </div>
         )}
 
-        <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div className="grid-2" style={{ marginTop: 22 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <Truck size={15} color="var(--muted)" />
@@ -505,12 +505,12 @@ function FinanceDashboard() {
           <h1 className="page-title">Tableau de bord</h1>
           <p className="page-subtitle">{school.name} · consultation des fiches de paie</p>
         </div>
-        <select className="select-el" style={{ width: 160 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+        <select className="select-el page-header-select" value={period} onChange={(e) => setPeriod(e.target.value)}>
           {PERIODS.map((p) => <option key={p}>{p}</option>)}
         </select>
       </div>
 
-      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+      <div className="stat-grid">
         <div className="card stat"><div className="stat-label">Fiches générées</div><div className="stat-value">{payslips.length}</div></div>
         <div className="card stat"><div className="stat-label">Envoyées / Brouillon</div><div className="stat-value">{sent} / {draft}</div></div>
         <div className="card stat"><div className="stat-label">Net total — {period}</div><div className="stat-value mono">{money(total)}</div></div>
@@ -550,12 +550,12 @@ function TreasuryDashboard() {
           <h1 className="page-title">Tableau de bord</h1>
           <p className="page-subtitle">Bonté Service · vue réseau des entrées et sorties</p>
         </div>
-        <select className="select-el" style={{ width: 170 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+        <select className="select-el page-header-select" value={period} onChange={(e) => setPeriod(e.target.value)}>
           {PERIODS.map((p) => <option key={p}>{p}</option>)}
         </select>
       </div>
 
-      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+      <div className="stat-grid">
         <div className="card stat"><div className="stat-label">Encaissé (réseau)</div><div className="stat-value mono">{money(totals.income)}</div></div>
         <div className="card stat"><div className="stat-label">Sorties (réseau)</div><div className="stat-value mono">{money(totals.outflow)}</div></div>
         <div className="card stat"><div className="stat-label">Demandes à traiter</div><div className="stat-value">{pending.length + validated.length}</div></div>
@@ -569,20 +569,22 @@ function TreasuryDashboard() {
             <ClipboardList size={13} /> Voir toutes les demandes
           </button>
         </div>
-        <table className="tbl">
-          <thead><tr><th>École</th><th>Libellé</th><th>Montant</th><th>Statut</th></tr></thead>
-          <tbody>
-            {[...pending, ...validated].slice(0, 6).map((o) => (
-              <tr key={o.id}>
-                <td style={{ fontWeight: 600 }}>{o.schoolName}</td>
-                <td>{o.label}</td>
-                <td className="mono">{money(o.amountRequested)}</td>
-                <td><span className={"pill " + PURCHASE_ORDER_STATUS_PILL[o.status]}>{PURCHASE_ORDER_STATUS_LABELS[o.status]}</span></td>
-              </tr>
-            ))}
-            {pending.length + validated.length === 0 && <tr><td colSpan={4} className="empty">Aucune demande en attente.</td></tr>}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table className="tbl">
+            <thead><tr><th>École</th><th>Libellé</th><th>Montant</th><th>Statut</th></tr></thead>
+            <tbody>
+              {[...pending, ...validated].slice(0, 6).map((o) => (
+                <tr key={o.id}>
+                  <td style={{ fontWeight: 600 }}>{o.schoolName}</td>
+                  <td>{o.label}</td>
+                  <td className="mono">{money(o.amountRequested)}</td>
+                  <td><span className={"pill " + PURCHASE_ORDER_STATUS_PILL[o.status]}>{PURCHASE_ORDER_STATUS_LABELS[o.status]}</span></td>
+                </tr>
+              ))}
+              {pending.length + validated.length === 0 && <tr><td colSpan={4} className="empty">Aucune demande en attente.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

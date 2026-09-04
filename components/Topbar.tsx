@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, Check, LogOut } from "lucide-react";
+import { ChevronDown, Check, LogOut, Menu } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useSchools } from "@/context/SchoolContext";
 import NotificationBell from "@/components/NotificationBell";
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }: { onMenuClick?: () => void } = {}) {
   const { schools, school, setActiveId } = useSchools();
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
@@ -15,40 +15,45 @@ export default function Topbar() {
 
   return (
     <div className="topbar">
-      {school ? (
-        <div
-          className="school-switch"
-          onClick={() => canSwitch && setOpen((o) => !o)}
-          style={canSwitch ? {} : { cursor: "default" }}
-        >
-          <div className="chip" style={{ background: school.color }}>
-            {initials(school.name)}
-          </div>
-          <div>
-            <div style={{ fontSize: 13.5, fontWeight: 700 }}>{school.name}</div>
-            <div style={{ fontSize: 11, color: "var(--muted)" }}>{school.description}</div>
-          </div>
-          {canSwitch && <ChevronDown size={15} style={{ marginLeft: 4, color: "var(--muted)" }} />}
-
-          {open && canSwitch && (
-            <div className="school-menu" onMouseLeave={() => setOpen(false)}>
-              {schools.map((c) => (
-                <div key={c.id} className="school-menu-item" onClick={() => { setActiveId(c.id); setOpen(false); }}>
-                  <div className="chip" style={{ background: c.color, width: 24, height: 24, fontSize: 10 }}>{initials(c.name)}</div>
-                  <div style={{ flex: 1, fontSize: 13 }}>{c.name}</div>
-                  {c.id === school.id && <Check size={14} color="var(--green)" />}
-                </div>
-              ))}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <button className="menu-btn" onClick={onMenuClick} aria-label="Ouvrir le menu">
+          <Menu size={20} />
+        </button>
+        {school ? (
+          <div
+            className="school-switch"
+            onClick={() => canSwitch && setOpen((o) => !o)}
+            style={canSwitch ? {} : { cursor: "default" }}
+          >
+            <div className="chip" style={{ background: school.color }}>
+              {initials(school.name)}
             </div>
-          )}
-        </div>
-      ) : (
-        <div />
-      )}
+            <div className="school-switch-text">
+              <div style={{ fontSize: 13.5, fontWeight: 700 }}>{school.name}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>{school.description}</div>
+            </div>
+            {canSwitch && <ChevronDown size={15} style={{ marginLeft: 4, color: "var(--muted)", flexShrink: 0 }} />}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {open && canSwitch && (
+              <div className="school-menu" onMouseLeave={() => setOpen(false)}>
+                {schools.map((c) => (
+                  <div key={c.id} className="school-menu-item" onClick={() => { setActiveId(c.id); setOpen(false); }}>
+                    <div className="chip" style={{ background: c.color, width: 24, height: 24, fontSize: 10 }}>{initials(c.name)}</div>
+                    <div style={{ flex: 1, fontSize: 13 }}>{c.name}</div>
+                    {c.id === school.id && <Check size={14} color="var(--green)" />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div />
+        )}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
         <NotificationBell />
-        <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+        <div className="topbar-greeting" style={{ fontSize: 12.5, color: "var(--muted)" }}>
           {user?.name ? `Bonjour, ${user.name.split(" ")[0]}` : ""}
         </div>
         <button

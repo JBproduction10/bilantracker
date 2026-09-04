@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Users, Building2, Landmark, SlidersHorizontal, FileText, Send,
-  GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History, ClipboardList, Package, Coins,
+  GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History, ClipboardList, Package, Coins, X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "@/lib/types";
@@ -151,7 +151,10 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
   ],
 };
 
-export default function Sidebar() {
+export default function Sidebar({
+  mobileOpen = false,
+  onClose,
+}: { mobileOpen?: boolean; onClose?: () => void } = {}) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const user = session?.user;
@@ -159,13 +162,16 @@ export default function Sidebar() {
   const sections = NAV_BY_ROLE[role] || [];
 
   return (
-    <div className="sidebar">
+    <div className={"sidebar" + (mobileOpen ? " mobile-open" : "")}>
       <div className="brand">
         <div className="brand-mark"><GraduationCap size={17} /></div>
         <div>
           <div className="brand-name">École Bilan</div>
           <div className="brand-sub">{ROLE_LABELS[role]}</div>
         </div>
+        <button className="sidebar-close-btn" onClick={onClose} aria-label="Fermer le menu">
+          <X size={18} />
+        </button>
       </div>
 
       {sections.map((section) => (
