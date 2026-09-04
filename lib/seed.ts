@@ -5,7 +5,7 @@ import { computePayslip } from "./calc";
 import type {
   School, EmployeeStatus, Fields, Student, Expense, ExpenseCategory, AppUser, Employee,
   Payment, FeeAdjustment, PaymentMethod, PurchaseOrder, PurchaseOrderStatus, InventoryItem, InventoryCategory, StockMovement,
-  SalaryGridSubmission, SalaryGridStatus,
+  SalaryGridSubmission, SalaryGridStatus, Cycle,
 } from "./types";
 
 let seeded = false;
@@ -39,8 +39,11 @@ function emp(
   return { id: uid("emp"), name, position, department, baseSalary, status, email, joinDate: "2024-09-01" };
 }
 
-function student(name: string, className: string, monthlyFee: number, guardian: string, phone: string): Student {
-  return { id: uid("stu"), name, className, monthlyFee, guardianName: guardian, guardianPhone: phone };
+function student(name: string, className: string, monthlyFee: number, guardian: string, phone: string, cycle: Cycle = "primaire"): Student {
+  return {
+    id: uid("stu"), name, className, cycle, monthlyFee, guardianName: guardian, guardianPhone: phone,
+    status: "active", joinDate: "2026-09-01", note: "",
+  };
 }
 
 const MONTHS: Record<string, string> = {
@@ -254,16 +257,16 @@ function seedSchools(): School[] {
     emp("Josiane Nkeng", "Agent d'entretien", "Personnel d'appui", 55000, "fontaine.edu"),
   ];
   const fontaineStudents = [
-    student("Kevin Fotso Jr", "6ème", 30000, "Mme Fotso", "677000001"),
-    student("Sandra Meka", "6ème", 30000, "M. Meka", "677000002"),
-    student("Willy Ebogo", "5ème", 30000, "Mme Ebogo", "677000003"),
-    student("Carine Nyanga", "5ème", 30000, "M. Nyanga", "677000004"),
-    student("Steve Abanda", "4ème", 32000, "Mme Abanda", "677000005"),
-    student("Flore Manga", "4ème", 32000, "M. Manga", "677000006"),
-    student("Landry Njoya", "3ème", 32000, "Mme Njoya", "677000007"),
-    student("Aurelie Bikele", "3ème", 32000, "M. Bikele", "677000008"),
-    student("Patrick Zang", "6ème", 30000, "Mme Zang", "677000009"),
-    student("Diane Oyono", "5ème", 30000, "M. Oyono", "677000010"),
+    student("Kevin Fotso Jr", "6ème", 30000, "Mme Fotso", "677000001", "orientation"),
+    student("Sandra Meka", "6ème", 30000, "M. Meka", "677000002", "orientation"),
+    student("Willy Ebogo", "5ème", 30000, "Mme Ebogo", "677000003", "orientation"),
+    student("Carine Nyanga", "5ème", 30000, "M. Nyanga", "677000004", "orientation"),
+    student("Steve Abanda", "4ème", 32000, "Mme Abanda", "677000005", "orientation"),
+    student("Flore Manga", "4ème", 32000, "M. Manga", "677000006", "orientation"),
+    student("Landry Njoya", "3ème", 32000, "Mme Njoya", "677000007", "orientation"),
+    student("Aurelie Bikele", "3ème", 32000, "M. Bikele", "677000008", "orientation"),
+    student("Patrick Zang", "6ème", 30000, "Mme Zang", "677000009", "orientation"),
+    student("Diane Oyono", "5ème", 30000, "M. Oyono", "677000010", "orientation"),
   ];
   const fontainePayments: Payment[] = [];
   const fontaineAdjustments: FeeAdjustment[] = [];
@@ -328,19 +331,19 @@ function seedSchools(): School[] {
     emp("Guy Larue", "Chauffeur", "Personnel d'appui", 65000, "excellence.edu"),
   ];
   const excellenceStudents = [
-    student("Ryan Foka", "5ème Bilingue", 40000, "Mme Foka", "655000001"),
-    student("Tania Ekwalla", "5ème Bilingue", 40000, "M. Ekwalla", "655000002"),
-    student("Chris Etame", "4ème Bilingue", 40000, "Mme Etame", "655000003"),
-    student("Melissa Njoh", "4ème Bilingue", 40000, "M. Njoh", "655000004"),
-    student("Boris Fongang", "3ème Bilingue", 42000, "Mme Fongang", "655000005"),
-    student("Nina Ateba", "3ème Bilingue", 42000, "M. Ateba", "655000006"),
-    student("Éric Talom", "6ème Bilingue", 38000, "Mme Talom", "655000007"),
-    student("Sarah Mbia", "6ème Bilingue", 38000, "M. Mbia", "655000008"),
-    student("Junior Awono", "5ème Bilingue", 40000, "Mme Awono", "655000009"),
-    student("Priscille Doumbe", "4ème Bilingue", 40000, "M. Doumbe", "655000010"),
-    student("Alex Ngo", "3ème Bilingue", 42000, "Mme Ngo", "655000011"),
-    student("Vanessa Kotto", "6ème Bilingue", 38000, "M. Kotto", "655000012"),
-    student("Cedric Ossome", "5ème Bilingue", 40000, "Mme Ossome", "655000013"),
+    student("Ryan Foka", "5ème Bilingue", 40000, "Mme Foka", "655000001", "orientation"),
+    student("Tania Ekwalla", "5ème Bilingue", 40000, "M. Ekwalla", "655000002", "orientation"),
+    student("Chris Etame", "4ème Bilingue", 40000, "Mme Etame", "655000003", "orientation"),
+    student("Melissa Njoh", "4ème Bilingue", 40000, "M. Njoh", "655000004", "orientation"),
+    student("Boris Fongang", "3ème Bilingue", 42000, "Mme Fongang", "655000005", "orientation"),
+    student("Nina Ateba", "3ème Bilingue", 42000, "M. Ateba", "655000006", "orientation"),
+    student("Éric Talom", "6ème Bilingue", 38000, "Mme Talom", "655000007", "orientation"),
+    student("Sarah Mbia", "6ème Bilingue", 38000, "M. Mbia", "655000008", "orientation"),
+    student("Junior Awono", "5ème Bilingue", 40000, "Mme Awono", "655000009", "orientation"),
+    student("Priscille Doumbe", "4ème Bilingue", 40000, "M. Doumbe", "655000010", "orientation"),
+    student("Alex Ngo", "3ème Bilingue", 42000, "Mme Ngo", "655000011", "orientation"),
+    student("Vanessa Kotto", "6ème Bilingue", 38000, "M. Kotto", "655000012", "orientation"),
+    student("Cedric Ossome", "5ème Bilingue", 40000, "Mme Ossome", "655000013", "orientation"),
   ];
   const excellencePayments: Payment[] = [];
   const excellenceAdjustments: FeeAdjustment[] = [];

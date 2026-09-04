@@ -2,13 +2,15 @@
 
 import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Plus, Search, Trash2, Pencil, X, Wallet, History, Mail } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, X, Wallet, History, Mail, Upload, Trash } from "lucide-react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
 import { money, initials, PERIODS } from "@/lib/utils";
-import { FEE_STATUS_LABELS, FEE_STATUS_PILL, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, ADJUSTMENT_REASON_LABELS, ADJUSTMENT_REASONS } from "@/lib/constants";
+import { FEE_STATUS_LABELS, FEE_STATUS_PILL, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, ADJUSTMENT_REASON_LABELS, ADJUSTMENT_REASONS, STUDENT_STATUS_LABELS } from "@/lib/constants";
 import { isValidEmail } from "@/lib/validation";
-import type { StudentWithLedger, FeeStatus, Payment, FeeAdjustment, PaymentMethod, AdjustmentReason, Student } from "@/lib/types";
+import { ImportStudentsDialog } from "@/components/ImportStudentsDialog";
+import { CYCLES, CYCLE_CLASSES } from "@/lib/academic";
+import type { StudentWithLedger, FeeStatus, Payment, FeeAdjustment, PaymentMethod, AdjustmentReason, Student, StudentStatus, Cycle } from "@/lib/types";
 
 export default function StudentsPage() {
   const { school } = useSchools();
@@ -25,6 +27,8 @@ export default function StudentsPage() {
   const [classFilter, setClassFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState<"All" | FeeStatus>("All");
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [editTarget, setEditTarget] = useState<StudentWithLedger | null>(null);
   const [payTarget, setPayTarget] = useState<StudentWithLedger | null>(null);
   const [ledgerTarget, setLedgerTarget] = useState<StudentWithLedger | null>(null);
@@ -71,7 +75,11 @@ export default function StudentsPage() {
             {PERIODS.map((p) => <option key={p}>{p}</option>)}
           </select>
           {canEdit && (
-            <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un élève</button>
+            <>
+              <button className="btn btn-ghost" onClick={() => setShowTrash(true)}><Trash size={15} /> Corbeille</button>
+              <button className="btn btn-outline" onClick={() => setShowImport(true)}><Upload size={15} /> Importer</button>
+              <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un élève</button>
+            </>
           )}
         </div>
       </div>
@@ -111,7 +119,10 @@ export default function StudentsPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div className="avatar" style={{ background: school.color }}>{initials(s.name)}</div>
                     <div>
-                      <div style={{ fontWeight: 700 }}>{s.name}</div>
+                      <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                        {s.name}
+                        {s.status === "withdrawn" && <span className="pill pill-inactive">Retiré</span>}
+                      </div>
                       <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{s.guardianName}{s.guardianPhone ? ` · ${s.guardianPhone}` : ""}</div>
                     </div>
                   </div>
@@ -129,7 +140,7 @@ export default function StudentsPage() {
                   {canEdit && (
                     <>
                       <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(s)}><Pencil size={13} /></button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => removeStudent(s.id)}><Trash2 size={14} /></button>
+                      <button className="btn btn-ghost btn-sm" title="Mettre à la corbeille" onClick={() => removeStudent(s.id)}><Trash2 size={14} /></button>
                     </>
                   )}
                 </td>
@@ -140,6 +151,12 @@ export default function StudentsPage() {
         </table>
       </div>
 
+      {showTrash && (
+        <TrashStudentsDialog schoolId={school.id} onClose={() => setShowTrash(false)} onChanged={load} />
+      )}
+      {showImport && (
+        <ImportStudentsDialog schoolId={school.id} onClose={() => setShowImport(false)} onImported={load} />
+      )}
       {showAdd && (
         <StudentModal schoolId={school.id} onClose={() => setShowAdd(false)} onSaved={async () => { await load(); setShowAdd(false); }} />
       )}
@@ -168,13 +185,27 @@ function StudentModal({
   schoolId, student, onClose, onSaved,
 }: { schoolId: string; student?: StudentWithLedger; onClose: () => void; onSaved: () => void | Promise<void> }) {
   const [name, setName] = useState(student?.name || "");
-  const [className, setClassName] = useState(student?.className || "");
+  const [cycle, setCycle] = useState<Cycle>(student?.cycle || "primaire");
+  const [className, setClassName] = useState(student?.className || CYCLE_CLASSES.primaire[0]);
   const [monthlyFee, setMonthlyFee] = useState(student ? String(student.monthlyFee) : "");
   const [guardianName, setGuardianName] = useState(student?.guardianName || "");
   const [guardianPhone, setGuardianPhone] = useState(student?.guardianPhone || "");
   const [guardianEmail, setGuardianEmail] = useState(student?.guardianEmail || "");
+  const [status, setStatus] = useState<StudentStatus>(student?.status || "active");
+  const [joinDate, setJoinDate] = useState(student?.joinDate || new Date().toISOString().slice(0, 10));
+  const [note, setNote] = useState(student?.note || "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // The dropdown always offers the cycle's standard classes, plus the
+  // student's current className if it's a legacy/custom value that isn't
+  // in that list — so editing an existing record never silently changes it.
+  const classOptions = CYCLE_CLASSES[cycle].includes(className) ? CYCLE_CLASSES[cycle] : [className, ...CYCLE_CLASSES[cycle]];
+
+  function handleCycleChange(next: Cycle) {
+    setCycle(next);
+    setClassName(CYCLE_CLASSES[next][0]);
+  }
 
   async function submit() {
     if (!name.trim() || !className.trim() || !monthlyFee) {
@@ -188,7 +219,7 @@ function StudentModal({
     setBusy(true);
     setError("");
     try {
-      const body = { name: name.trim(), className: className.trim(), monthlyFee: Number(monthlyFee), guardianName, guardianPhone, guardianEmail };
+      const body = { name: name.trim(), className: className.trim(), cycle, monthlyFee: Number(monthlyFee), guardianName, guardianPhone, guardianEmail, status, joinDate, note: note.trim() };
       if (student) await api.updateStudent(schoolId, student.id, body);
       else await api.addStudent(schoolId, body);
       onSaved();
@@ -211,14 +242,20 @@ function StudentModal({
           <input className="field" style={{ marginBottom: 14 }} placeholder="ex. Marie Ateba" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="field-row">
             <div>
-              <label className="label">Classe</label>
-              <input className="field" placeholder="ex. CM2" value={className} onChange={(e) => setClassName(e.target.value)} />
+              <label className="label">Cycle</label>
+              <select className="select-el" value={cycle} onChange={(e) => handleCycleChange(e.target.value as Cycle)}>
+                {CYCLES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
             </div>
             <div>
-              <label className="label">Frais mensuel (FC)</label>
-              <input className="field" type="number" placeholder="25000" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} />
+              <label className="label">Classe</label>
+              <select className="select-el" value={className} onChange={(e) => setClassName(e.target.value)}>
+                {classOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           </div>
+          <label className="label">Frais mensuel (FC)</label>
+          <input className="field" style={{ marginBottom: 14 }} type="number" placeholder="25000" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} />
           <div className="field-row">
             <div>
               <label className="label">Nom du tuteur</label>
@@ -230,12 +267,96 @@ function StudentModal({
             </div>
           </div>
           <label className="label">Email du tuteur (pour l&apos;envoi des reçus)</label>
-          <input className="field" type="email" placeholder="tuteur@email.com" value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} />
-          {error && <div className="error-text">{error}</div>}
+          <input className="field" style={{ marginBottom: 14 }} type="email" placeholder="tuteur@email.com" value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} />
+          <div className="field-row">
+            <div>
+              <label className="label">Statut</label>
+              <select className="select-el" value={status} onChange={(e) => setStatus(e.target.value as StudentStatus)}>
+                {(Object.keys(STUDENT_STATUS_LABELS) as StudentStatus[]).map((s) => <option key={s} value={s}>{STUDENT_STATUS_LABELS[s]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Date d&apos;inscription</label>
+              <input className="field" type="date" value={joinDate} onChange={(e) => setJoinDate(e.target.value)} />
+            </div>
+          </div>
+          <label className="label">Note (optionnel)</label>
+          <textarea className="field" style={{ minHeight: 60, resize: "vertical" }} placeholder="ex. Cas social, arrangement particulier…" value={note} onChange={(e) => setNote(e.target.value)} />
+          {error && <div className="error-text" style={{ marginTop: 10 }}>{error}</div>}
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Annuler</button>
           <button className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? "Enregistrement…" : student ? "Enregistrer" : "Ajouter l'élève"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Trash: students soft-deleted from the roster, recoverable until permanently removed. */
+function TrashStudentsDialog({
+  schoolId, onClose, onChanged,
+}: { schoolId: string; onClose: () => void; onChanged: () => void | Promise<void> }) {
+  const [items, setItems] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setItems(await api.listTrashedStudents(schoolId));
+    setLoading(false);
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  async function restore(id: string) {
+    setBusyId(id);
+    try {
+      await api.restoreStudent(schoolId, id);
+      await load();
+      await onChanged();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function destroy(id: string) {
+    setBusyId(id);
+    try {
+      await api.permanentlyDeleteStudent(schoolId, id);
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-title">Corbeille — élèves</p>
+            <p className="modal-sub">Un élève retiré reste récupérable ici. La suppression définitive efface aussi son historique de paiements et ne peut pas être annulée.</p>
+          </div>
+          <button className="close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body">
+          {loading && <div style={{ fontSize: 13, color: "var(--muted)" }}>Chargement…</div>}
+          {!loading && items.length === 0 && <div style={{ fontSize: 13, color: "var(--muted)" }}>La corbeille est vide.</div>}
+          {items.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13.5 }}>{s.name}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{s.className} · supprimé le {s.deletedAt?.slice(0, 10)}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button className="btn btn-outline btn-sm" disabled={busyId === s.id} onClick={() => restore(s.id)}>Restaurer</button>
+                <button className="btn btn-ghost btn-sm" title="Supprimer définitivement" disabled={busyId === s.id} onClick={() => destroy(s.id)}><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Fermer</button>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import type { Role, FeeStatus, ExpenseCategory, PaymentMethod, AdjustmentReason, UserStatus, AuditAction, EmployeeStatus, PurchaseOrderStatus, InventoryCategory, StockMovementType, SalaryGridStatus } from "./types";
+import type { Role, FeeStatus, ExpenseCategory, PaymentMethod, AdjustmentReason, UserStatus, AuditAction, EmployeeStatus, StudentStatus, PurchaseOrderStatus, InventoryCategory, StockMovementType, SalaryGridStatus } from "./types";
 
 export const ROLE_LABELS: Record<Role, string> = {
   super_admin: "Super Admin",
@@ -84,11 +84,15 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "expense.remove": "Dépense supprimée",
   "expense.update": "Dépense modifiée",
   "student.add": "Élève ajouté",
-  "student.remove": "Élève supprimé",
+  "student.remove": "Élève mis à la corbeille",
   "student.update": "Élève modifié",
+  "student.restore": "Élève restauré",
+  "student.permanent_delete": "Élève supprimé définitivement",
   "employee.add": "Employé ajouté",
-  "employee.remove": "Employé supprimé",
+  "employee.remove": "Employé mis à la corbeille",
   "employee.update": "Employé modifié",
+  "employee.restore": "Employé restauré",
+  "employee.permanent_delete": "Employé supprimé définitivement",
   "department.add": "Département ajouté",
   "department.remove": "Département supprimé",
   "department.update": "Département modifié",
@@ -119,7 +123,6 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "salary_grid.submit": "Grille salariale envoyée",
   "salary_grid.apply": "Grille salariale appliquée et fiches générées",
   "salary_grid.reject": "Grille salariale refusée",
-  "payslip.notify_ready": ""
 };
 
 export const SALARY_GRID_STATUS_LABELS: Record<SalaryGridStatus, string> = {
@@ -171,3 +174,10 @@ export const EMPLOYEE_STATUS_LABELS: Record<EmployeeStatus, string> = {
 };
 
 export const EMPLOYEE_STATUSES: EmployeeStatus[] = ["Active", "On Leave", "Inactive"];
+
+export const STUDENT_STATUS_LABELS: Record<StudentStatus, string> = {
+  active: "Actif",
+  withdrawn: "Retiré",
+};
+
+export const STUDENT_STATUSES: StudentStatus[] = ["active", "withdrawn"];

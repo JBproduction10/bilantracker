@@ -13,7 +13,10 @@ import type {
   InventoryItem, InventoryItemInput, StockMovement, StockMovementInput, InventorySummary,
   NetworkInventoryOverview, NetworkInventorySchoolSummary, NetworkInventoryStockRow, NetworkStockMovementRow,
   SalaryGridSubmission, SalaryGridSubmissionInput, SalaryGridDecisionInput, SalaryGridStatus, SalaryGridEntry,
+  Cycle,
 } from "./types";
+
+const VALID_CYCLES: Cycle[] = ["primaire", "orientation", "superieur"];
 
 async function collection() {
   await ensureSeeded();
@@ -25,6 +28,24 @@ function strip(doc: (School & { _id?: unknown }) | null): School | null {
   if (!doc) return null;
   const { _id, ...rest } = doc;
   return rest as School;
+}
+
+/**
+ * Schools seeded (or students added) before status/joinDate/note/cycle
+ * existed on the Student record won't have them in the database — Mongo
+ * doesn't enforce a schema, so old documents just lack the field. Default
+ * them at read time rather than requiring a migration.
+ */
+function normalizeStudent(s: Student): Student {
+  return {
+    ...s, status: s.status || "active", joinDate: s.joinDate || "2024-01-01", note: s.note ?? "",
+    cycle: (VALID_CYCLES as string[]).includes(s.cycle) ? s.cycle : "primaire",
+  };
+}
+
+/** Active roster only — soft-deleted (trashed) records are hidden from every normal listing. */
+function isNotTrashed<T extends { deletedAt?: string | null }>(x: T): boolean {
+  return !x.deletedAt;
 }
 
 export async function listSchools(): Promise<School[]> {
@@ -127,7 +148,7 @@ export async function updateDepartment(sid: string, did: string, { name, head, d
 }
 
 // ---------- Employees ----------
-export async function addEmployee(sid: string, { name, position, department, baseSalary, status }: EmployeeInput) {
+export async function addEmployee(sid: string, { name, position, department, baseSalary, status, joinDate }: EmployeeInput) {
   if (!name || !position || !department || !baseSalary) {
     throw new Error("Fill in name, position, department, and base salary.");
   }
@@ -137,14 +158,38 @@ export async function addEmployee(sid: string, { name, position, department, bas
   const email = `${String(name).toLowerCase().replace(/[^a-z ]/g, "").split(" ").join(".")}@${school.domain}`;
   const employee = {
     id: uid("emp"), name, position, department, baseSalary: Number(baseSalary),
-    status: status || "Active", email, joinDate: new Date().toISOString().slice(0, 10),
+    status: status || "Active", email, joinDate: joinDate?.trim() || new Date().toISOString().slice(0, 10),
   } as School["employees"][number];
   school.employees.push(employee);
   await col.replaceOne({ id: sid }, school);
   return employee;
 }
 
+// Soft delete — the record (and any payslips already generated for them)
+// stays intact so it can be restored from the Trash view. See
+// permanentlyDeleteEmployee for the irreversible version.
 export async function removeEmployee(sid: string, eid: string): Promise<void> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const employee = school.employees.find((e) => e.id === eid);
+  if (!employee) throw new Error("Employee not found.");
+  employee.deletedAt = new Date().toISOString();
+  await col.replaceOne({ id: sid }, school);
+}
+
+export async function restoreEmployee(sid: string, eid: string) {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const employee = school.employees.find((e) => e.id === eid);
+  if (!employee) throw new Error("Employee not found.");
+  employee.deletedAt = null;
+  await col.replaceOne({ id: sid }, school);
+  return employee;
+}
+
+export async function permanentlyDeleteEmployee(sid: string, eid: string): Promise<void> {
   const col = await collection();
   const school = await col.findOne({ id: sid });
   if (!school) throw new Error("School not found.");
@@ -222,7 +267,7 @@ export async function listPayslips(sid: string, period?: string) {
 
 function generatePayslipsForSchool(school: School, period: string) {
   const already = new Set(school.payslips.filter((p) => p.period === period).map((p) => p.employeeId));
-  const targets = school.employees.filter((e) => e.status !== "Inactive" && !already.has(e.id));
+  const targets = school.employees.filter((e) => e.status !== "Inactive" && !e.deletedAt && !already.has(e.id));
   const created = targets.map((emp) => {
     const calc = computePayslip(emp, school.fields);
     return { id: uid("ps"), employeeId: emp.id, period, status: "draft" as PayslipStatus, generatedAt: Date.now(), ...calc };
@@ -331,17 +376,36 @@ export async function listStudents(sid: string) {
   const col = await collection();
   const school = await col.findOne({ id: sid });
   if (!school) throw new Error("School not found.");
-  return school.students;
+  return school.students.filter(isNotTrashed).map(normalizeStudent);
 }
 
 export async function listStudentsWithLedger(sid: string, period: string) {
   const col = await collection();
   const school = await col.findOne({ id: sid });
   if (!school) throw new Error("School not found.");
-  return computeStudentsWithLedger(school.students, school.payments, school.feeAdjustments, period);
+  const active = school.students.filter(isNotTrashed).map(normalizeStudent);
+  return computeStudentsWithLedger(active, school.payments, school.feeAdjustments, period);
 }
 
-export async function addStudent(sid: string, { name, className, guardianName, guardianPhone, guardianEmail, monthlyFee }: StudentInput) {
+/** The Trash view: students soft-deleted but not yet permanently removed, most recent first. */
+export async function listTrashedStudents(sid: string) {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  return school.students
+    .filter((s) => !!s.deletedAt)
+    .map(normalizeStudent)
+    .sort((a, b) => (b.deletedAt || "").localeCompare(a.deletedAt || ""));
+}
+
+function parseCycle(value: string | undefined): Cycle {
+  return (VALID_CYCLES as string[]).includes(value ?? "") ? (value as Cycle) : "primaire";
+}
+
+export async function addStudent(
+  sid: string,
+  { name, className, cycle, guardianName, guardianPhone, guardianEmail, monthlyFee, status, joinDate, note }: StudentInput
+) {
   if (!name || !className || !monthlyFee) throw new Error("Fill in the student's name, class, and monthly fee.");
   // Guardian email is optional at this point — a student can be added before
   // the school has contact details — but if one is given, it has to be a
@@ -351,26 +415,57 @@ export async function addStudent(sid: string, { name, className, guardianName, g
   const school = await col.findOne({ id: sid });
   if (!school) throw new Error("School not found.");
   const newStudent: Student = {
-    id: uid("stu"), name, className, monthlyFee: Number(monthlyFee),
+    id: uid("stu"), name, className, cycle: parseCycle(cycle), monthlyFee: Number(monthlyFee),
     guardianName: guardianName || "", guardianPhone: guardianPhone || "", guardianEmail: cleanGuardianEmail,
+    status: status === "withdrawn" ? "withdrawn" : "active",
+    joinDate: joinDate?.trim() || new Date().toISOString().slice(0, 10),
+    note: note || "",
   };
   school.students.push(newStudent);
   await col.replaceOne({ id: sid }, school);
   return newStudent;
 }
 
+// Soft delete — fee payment history is preserved so restoring a student
+// brings their full record back intact. See permanentlyDeleteStudent for
+// the irreversible version (used from the Trash view).
 export async function removeStudent(sid: string, stid: string): Promise<void> {
   const col = await collection();
   const school = await col.findOne({ id: sid });
   if (!school) throw new Error("School not found.");
+  const student = school.students.find((s) => s.id === stid);
+  if (!student) throw new Error("Student not found.");
+  student.deletedAt = new Date().toISOString();
+  await col.replaceOne({ id: sid }, school);
+}
+
+export async function restoreStudent(sid: string, stid: string): Promise<Student> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
+  const student = school.students.find((s) => s.id === stid);
+  if (!student) throw new Error("Student not found.");
+  student.deletedAt = null;
+  await col.replaceOne({ id: sid }, school);
+  return normalizeStudent(student);
+}
+
+export async function permanentlyDeleteStudent(sid: string, stid: string): Promise<void> {
+  const col = await collection();
+  const school = await col.findOne({ id: sid });
+  if (!school) throw new Error("School not found.");
   school.students = school.students.filter((s) => s.id !== stid);
-  // Cascade: a removed student's ledger entries no longer belong to anyone.
+  // Cascade: a permanently removed student's ledger entries no longer belong to anyone.
   school.payments = school.payments.filter((p) => p.studentId !== stid);
   school.feeAdjustments = school.feeAdjustments.filter((a) => a.studentId !== stid);
   await col.replaceOne({ id: sid }, school);
 }
 
-export async function updateStudent(sid: string, stid: string, { name, className, guardianName, guardianPhone, guardianEmail, monthlyFee }: StudentInput) {
+export async function updateStudent(
+  sid: string,
+  stid: string,
+  { name, className, cycle, guardianName, guardianPhone, guardianEmail, monthlyFee, status, joinDate, note }: StudentInput
+) {
   if (!name || !className || !monthlyFee) throw new Error("Fill in the student's name, class, and monthly fee.");
   const cleanGuardianEmail = guardianEmail?.trim() ? assertValidEmail(guardianEmail, "L'email du tuteur") : "";
   const col = await collection();
@@ -380,6 +475,7 @@ export async function updateStudent(sid: string, stid: string, { name, className
   if (!student) throw new Error("Student not found.");
   student.name = name;
   student.className = className;
+  if (cycle !== undefined) student.cycle = parseCycle(cycle);
   // A changed monthlyFee only affects periods computed from here on — past
   // payments and fee adjustments already recorded keep whatever amountDue
   // was true at the time, which is exactly what a real ledger should do.
@@ -387,6 +483,9 @@ export async function updateStudent(sid: string, stid: string, { name, className
   student.guardianName = guardianName || "";
   student.guardianPhone = guardianPhone || "";
   student.guardianEmail = cleanGuardianEmail;
+  if (status !== undefined) student.status = status === "withdrawn" ? "withdrawn" : "active";
+  if (joinDate !== undefined && joinDate.trim()) student.joinDate = joinDate.trim();
+  if (note !== undefined) student.note = note;
   await col.replaceOne({ id: sid }, school);
   return student;
 }
@@ -510,7 +609,8 @@ export function computeSchoolReport(school: School, period: string): SchoolRepor
   // Enrollment status is a snapshot-in-time concept: "all periods" falls back
   // to the most recent period rather than trying to merge statuses together.
   const statusPeriod = period === "all" ? currentPeriod() : period;
-  const ledgers = computeStudentsWithLedger(school.students, school.payments, school.feeAdjustments, statusPeriod).map((s) => s.ledger);
+  const activeStudents = school.students.filter((s) => !s.deletedAt);
+  const ledgers = computeStudentsWithLedger(activeStudents, school.payments, school.feeAdjustments, statusPeriod).map((s) => s.ledger);
 
   const studentsPaid = ledgers.filter((l) => l.status === "paid").length;
   const studentsPartial = ledgers.filter((l) => l.status === "partial").length;
@@ -543,7 +643,7 @@ export function computeSchoolReport(school: School, period: string): SchoolRepor
     schoolName: school.name,
     color: school.color,
     period,
-    studentsTotal: school.students.length,
+    studentsTotal: activeStudents.length,
     studentsPaid,
     studentsPartial,
     studentsUnpaid,

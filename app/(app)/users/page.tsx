@@ -186,7 +186,7 @@ function AddUserModal({
               <label className="label">Lier à un employé (facultatif)</label>
               <select className="select-el" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
                 <option value="">Aucun</option>
-                {selectedSchool.employees.map((e) => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
+                {selectedSchool.employees.filter((e) => !e.deletedAt).map((e) => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
               </select>
               <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>
                 Sans lien, cet enseignant ne verra encore aucune fiche de paie.

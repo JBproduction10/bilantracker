@@ -19,15 +19,13 @@ export const DELETE = withAuth(async (_req, { params }, user) => {
   requireCondition(canManageStudents(user, params.sid));
   const school = await data.getSchool(params.sid);
   const target = school?.students.find((s) => s.id === params.stid);
-  const paymentCount = school?.payments.filter((p) => p.studentId === params.stid).length || 0;
   await data.removeStudent(params.sid, params.stid);
-  // A student's removal cascades their whole payment history — that's
-  // exactly the kind of thing this trail exists to catch, so the entry
-  // notes how many payment records went with them.
+  // Soft delete — the record and its payment history stay in place so it
+  // can be restored from the Trash view; nothing is cascaded here.
   await logAudit({
     actor: user, action: "student.remove", schoolId: params.sid,
     targetType: "student", targetId: params.stid, targetLabel: target?.name,
-    details: { className: target?.className, monthlyFee: target?.monthlyFee, paymentsRemoved: paymentCount },
+    details: { className: target?.className, monthlyFee: target?.monthlyFee },
   });
   return new Response(null, { status: 204 });
 });

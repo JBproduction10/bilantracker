@@ -18,27 +18,29 @@ export default function Departments() {
     await refresh();
   }
 
-  const totalPayroll = school.employees.reduce((s, e) => s + e.baseSalary, 0);
+  // Soft-deleted employees stay on the school document but shouldn't count toward active headcount/payroll.
+  const activeEmployees = school.employees.filter((e) => !e.deletedAt);
+  const totalPayroll = activeEmployees.reduce((s, e) => s + e.baseSalary, 0);
 
   return (
     <>
       <div className="page-header">
         <div>
           <h1 className="page-title">Départements</h1>
-          <p className="page-subtitle">{school.departments.length} départements · {school.employees.length} employés</p>
+          <p className="page-subtitle">{school.departments.length} départements · {activeEmployees.length} employés</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un département</button>
       </div>
 
       <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-        <div className="card stat"><div className="stat-label">Effectif total</div><div className="stat-value">{school.employees.length}</div></div>
+        <div className="card stat"><div className="stat-label">Effectif total</div><div className="stat-value">{activeEmployees.length}</div></div>
         <div className="card stat"><div className="stat-label">Masse salariale mensuelle</div><div className="stat-value mono">{money(totalPayroll)}</div></div>
         <div className="card stat"><div className="stat-label">Départements</div><div className="stat-value">{school.departments.length}</div></div>
       </div>
 
       <div className="dept-grid">
         {school.departments.map((d) => {
-          const members = school.employees.filter((e) => e.department === d.name);
+          const members = activeEmployees.filter((e) => e.department === d.name);
           const payroll = members.reduce((s, e) => s + e.baseSalary, 0);
           return (
             <div key={d.id} className="card dept-card">

@@ -101,10 +101,6 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
         { href: "/salary-grid", label: "Grille salariale (Bonté Service)", icon: Coins },
       ],
     },
-    {
-      section: "Supervision",
-      items: [{ href: "/audit-log", label: "Journal d'audit", icon: History }],
-    },
   ],
   finance: [
     {
@@ -129,7 +125,6 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
         { href: "/purchase-orders", label: "Bons de commande", icon: ClipboardList },
         { href: "/salary-grid", label: "Grille salariale", icon: Coins },
         { href: "/reports", label: "Bilans", icon: BarChart3 },
-        { href: "/audit-log", label: "Journal d'audit", icon: History },
       ],
     },
   ],

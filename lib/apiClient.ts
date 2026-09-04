@@ -55,6 +55,10 @@ export const api = {
     request<Employee>(`/schools/${sid}/employees/${eid}`, { method: "PUT", body }),
   removeEmployee: (sid: string, eid: string) =>
     request<null>(`/schools/${sid}/employees/${eid}`, { method: "DELETE" }),
+  restoreEmployee: (sid: string, eid: string) =>
+    request<Employee>(`/schools/${sid}/employees/${eid}/restore`, { method: "POST" }),
+  permanentlyDeleteEmployee: (sid: string, eid: string) =>
+    request<null>(`/schools/${sid}/employees/${eid}/permanent`, { method: "DELETE" }),
 
   addField: (sid: string, category: FieldCategory, body: Partial<FieldItem>) =>
     request<FieldItem>(`/schools/${sid}/fields/${category}`, { method: "POST", body }),
@@ -89,6 +93,12 @@ export const api = {
     request<Student>(`/schools/${sid}/students/${stid}`, { method: "PUT", body }),
   removeStudent: (sid: string, stid: string) =>
     request<null>(`/schools/${sid}/students/${stid}`, { method: "DELETE" }),
+  listTrashedStudents: (sid: string) =>
+    request<Student[]>(`/schools/${sid}/students/trash`),
+  restoreStudent: (sid: string, stid: string) =>
+    request<Student>(`/schools/${sid}/students/${stid}/restore`, { method: "POST" }),
+  permanentlyDeleteStudent: (sid: string, stid: string) =>
+    request<null>(`/schools/${sid}/students/${stid}/permanent`, { method: "DELETE" }),
 
   getStudentLedger: (sid: string, stid: string) =>
     request<{ student: Student; payments: Payment[]; adjustments: FeeAdjustment[] }>(`/schools/${sid}/students/${stid}/ledger`),

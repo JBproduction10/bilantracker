@@ -29,7 +29,7 @@ function TreasurySalaryGrid() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const activeEmployees = useMemo(() => (school?.employees || []).filter((e) => e.status !== "Inactive"), [school]);
+  const activeEmployees = useMemo(() => (school?.employees || []).filter((e) => e.status !== "Inactive" && !e.deletedAt), [school]);
 
   const load = async () => {
     if (!school) return;

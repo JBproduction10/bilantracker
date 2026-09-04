@@ -164,7 +164,7 @@ interface GenerateModalProps {
 function GenerateModal({ school, period, setPeriod, onClose, onGenerated }: GenerateModalProps) {
   const [busy, setBusy] = useState(false);
 
-  const activeEmployees = school.employees.filter((e) => e.status !== "Inactive");
+  const activeEmployees = school.employees.filter((e) => e.status !== "Inactive" && !e.deletedAt);
 
   async function generate() {
     setBusy(true);

@@ -18,10 +18,10 @@ const ROLE_HOME: Record<Role, string> = {
 const ROLE_ALLOWED: Record<Role, string[]> = {
   super_admin: ["*"], // includes /settings
   promoter: ["/dashboard", "/reports", "/audit-log", "/purchase-orders", "/salary-grid"],
-  school_admin: ["/dashboard", "/students", "/receipt-requests", "/expenses", "/employees", "/departments", "/payslips", "/send", "/fields", "/audit-log", "/purchase-orders", "/inventory", "/salary-grid"],
+  school_admin: ["/dashboard", "/students", "/receipt-requests", "/expenses", "/employees", "/departments", "/payslips", "/send", "/fields", "/purchase-orders", "/inventory", "/salary-grid"],
   finance: ["/dashboard", "/payslips"],
   teacher: ["/my-payslips"],
-  treasury: ["/dashboard", "/purchase-orders", "/reports", "/audit-log", "/salary-grid"],
+  treasury: ["/dashboard", "/purchase-orders", "/reports", "/salary-grid"],
   logistics: ["/inventory"],
   // Caisse: the only school-level role that actually enrolls students and
   // collects fees. Scoped narrowly, same as logistics — no dashboard, no

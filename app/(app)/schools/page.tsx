@@ -20,7 +20,7 @@ export default function SchoolsPage() {
   const [removeTarget, setRemoveTarget] = useState<School | null>(null);
   const [error, setError] = useState("");
 
-  const totalEmployees = schools.reduce((s, c) => s + c.employees.length, 0);
+  const totalEmployees = schools.reduce((s, c) => s + c.employees.filter((e) => !e.deletedAt).length, 0);
   const totalDepartments = schools.reduce((s, c) => s + c.departments.length, 0);
 
   async function confirmRemove() {
@@ -67,7 +67,7 @@ export default function SchoolsPage() {
             </div>
             <div style={{ fontSize: 12, color: "#8A6420", marginBottom: 14 }}>@{c.domain}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 }}>
-              <div><div className="mono" style={{ fontWeight: 700 }}>{c.employees.length}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>Employés</div></div>
+              <div><div className="mono" style={{ fontWeight: 700 }}>{c.employees.filter((e) => !e.deletedAt).length}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>Employés</div></div>
               <div><div className="mono" style={{ fontWeight: 700 }}>{c.departments.length}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>Départements</div></div>
               <div><div className="mono" style={{ fontWeight: 700 }}>{c.payslips.length}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>Fiches</div></div>
             </div>

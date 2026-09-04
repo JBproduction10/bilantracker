@@ -1,4 +1,6 @@
 export type EmployeeStatus = "Active" | "On Leave" | "Inactive";
+export type StudentStatus = "active" | "withdrawn";
+export type Cycle = "primaire" | "orientation" | "superieur";
 export type PayslipStatus = "draft" | "sent";
 export type FieldType = "fixed" | "percent";
 export type FieldCategory = "earnings" | "deductions" | "info";
@@ -25,6 +27,8 @@ export interface Employee {
   status: EmployeeStatus;
   email: string;
   joinDate: string;
+  /** Soft-delete marker — set instead of removing the record outright, so payslip history stays intact. Absent/null = active. */
+  deletedAt?: string | null;
 }
 
 export interface FieldItem {
@@ -99,10 +103,24 @@ export interface Student {
   id: string;
   name: string;
   className: string;
+  /**
+   * The three cycles a student is enrolled through, per the same
+   * Primaire → Cycle d'orientation → Cycle supérieur structure used
+   * across the network. `className` remains the specific class within
+   * that cycle (e.g. "6ème Primaire"), so filtering/reporting can group
+   * by cycle without parsing text. See lib/academic.ts.
+   */
+  cycle: Cycle;
   guardianName?: string;
   guardianPhone?: string;
   guardianEmail?: string;
   monthlyFee: number;
+  /** "withdrawn" keeps the record (and its fee history) without deleting it outright. */
+  status: StudentStatus;
+  joinDate: string;
+  note?: string;
+  /** Soft-delete marker — set instead of removing the record outright. Absent/null = active. */
+  deletedAt?: string | null;
 }
 
 export interface StudentWithLedger extends Student {
@@ -414,8 +432,8 @@ export type AuditAction =
   | "payment.add" | "payment.remove"
   | "fee_adjustment.set" | "fee_adjustment.remove"
   | "expense.add" | "expense.remove" | "expense.update"
-  | "student.add" | "student.remove" | "student.update"
-  | "employee.add" | "employee.remove" | "employee.update"
+  | "student.add" | "student.remove" | "student.update" | "student.restore" | "student.permanent_delete"
+  | "employee.add" | "employee.remove" | "employee.update" | "employee.restore" | "employee.permanent_delete"
   | "department.add" | "department.remove" | "department.update"
   | "field.add" | "field.update" | "field.remove"
   | "payslip.generate" | "payslip.status" | "payslip.send" | "payslip.mark_all_sent" | "payslip.send_all" | "payslip.notify_ready"
@@ -499,6 +517,7 @@ export interface EmployeeInput {
   department: string;
   baseSalary: number | string;
   status?: EmployeeStatus;
+  joinDate?: string;
 }
 
 export interface FieldInput {
@@ -511,10 +530,14 @@ export interface FieldInput {
 export interface StudentInput {
   name: string;
   className: string;
+  cycle?: Cycle;
   guardianName?: string;
   guardianPhone?: string;
   guardianEmail?: string;
   monthlyFee: number | string;
+  status?: StudentStatus;
+  joinDate?: string;
+  note?: string;
 }
 
 export interface PaymentInput {

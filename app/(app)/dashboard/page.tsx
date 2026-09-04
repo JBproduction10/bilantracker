@@ -54,8 +54,12 @@ function SchoolDashboard() {
 
   if (!school) return null;
 
-  const totalEmployees = school.employees.length;
-  const monthlyPayroll = school.employees.reduce((s, e) => s + e.baseSalary, 0);
+  // Soft-deleted employees/students stay in the document (for payslip/fee
+  // history) but shouldn't count toward headcount or payroll totals.
+  const activeEmployees = school.employees.filter((e) => !e.deletedAt);
+  const activeStudents = school.students.filter((s) => !s.deletedAt);
+  const totalEmployees = activeEmployees.length;
+  const monthlyPayroll = activeEmployees.reduce((s, e) => s + e.baseSalary, 0);
   const pending = payslips.filter((p) => p.status === "draft").length;
 
   return (
@@ -79,7 +83,7 @@ function SchoolDashboard() {
         <div className="card stat">
           <div className="stat-icon" style={{ background: "var(--sage-tint)", color: "var(--green-dark)" }}><GraduationCap size={16} /></div>
           <div className="stat-label">Élèves inscrits</div>
-          <div className="stat-value">{school.students.length}</div>
+          <div className="stat-value">{activeStudents.length}</div>
           <div className="stat-delta">{report ? `${report.studentsUnpaid} non payés` : ""}</div>
         </div>
         <div className="card stat">
@@ -118,9 +122,9 @@ function SchoolDashboard() {
         <div className="card" style={{ padding: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 14 }}>Répartition par classe</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {Array.from(new Set(school.students.map((s) => s.className))).slice(0, 6).map((c) => {
-              const count = school.students.filter((s) => s.className === c).length;
-              const pct = school.students.length ? (count / school.students.length) * 100 : 0;
+            {Array.from(new Set(activeStudents.map((s) => s.className))).slice(0, 6).map((c) => {
+              const count = activeStudents.filter((s) => s.className === c).length;
+              const pct = activeStudents.length ? (count / activeStudents.length) * 100 : 0;
               return (
                 <div key={c}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
@@ -132,7 +136,7 @@ function SchoolDashboard() {
                 </div>
               );
             })}
-            {school.students.length === 0 && <div style={{ fontSize: 12.5, color: "var(--muted)" }}>Aucun élève enregistré.</div>}
+            {activeStudents.length === 0 && <div style={{ fontSize: 12.5, color: "var(--muted)" }}>Aucun élève enregistré.</div>}
           </div>
         </div>
       </div>

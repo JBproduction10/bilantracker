@@ -45,12 +45,15 @@ export async function logAudit(input: LogAuditInput): Promise<void> {
 export interface ListAuditLogsOptions {
   schoolId?: string;
   limit?: number;
+  /** Entries whose actorRole is in this list are left out entirely — used so a promoter can't see what a super_admin did. */
+  excludeActorRoles?: string[];
 }
 
-export async function listAuditLogs({ schoolId, limit = 200 }: ListAuditLogsOptions = {}): Promise<AuditEntry[]> {
+export async function listAuditLogs({ schoolId, limit = 200, excludeActorRoles }: ListAuditLogsOptions = {}): Promise<AuditEntry[]> {
   const db = await getDb();
   const filter: Record<string, unknown> = {};
   if (schoolId) filter.schoolId = schoolId;
+  if (excludeActorRoles && excludeActorRoles.length > 0) filter.actorRole = { $nin: excludeActorRoles };
   const docs = await db
     .collection<AuditEntry & { _id?: unknown }>("audit_logs")
     .find(filter)

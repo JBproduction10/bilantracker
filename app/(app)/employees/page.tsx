@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Search, Trash2, Pencil, X } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, X, Upload, Trash } from "lucide-react";
 import { useSchools } from "@/context/SchoolContext";
 import { api } from "@/lib/apiClient";
 import { money, initials } from "@/lib/utils";
 import { EMPLOYEE_STATUS_LABELS, EMPLOYEE_STATUSES } from "@/lib/constants";
+import { ImportEmployeesDialog } from "@/components/ImportEmployeesDialog";
 import type { School, Employee, EmployeeStatus } from "@/lib/types";
 
 export default function Employees() {
@@ -14,12 +15,19 @@ export default function Employees() {
   const [dept, setDept] = useState("All");
   const [status, setStatus] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (!school) return null;
 
-  const filtered = school.employees.filter((e) => {
+  // Soft-deleted employees stay in the school document (so past payslips
+  // still resolve their name) but never appear in the active roster —
+  // they live in the Trash dialog instead.
+  const activeEmployees = school.employees.filter((e) => !e.deletedAt);
+
+  const filtered = activeEmployees.filter((e) => {
     const q = query.toLowerCase();
     const matchQ = !q || e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q) || e.position.toLowerCase().includes(q);
     const matchD = dept === "All" || e.department === dept;
@@ -42,9 +50,13 @@ export default function Employees() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Employés</h1>
-          <p className="page-subtitle">{school.employees.length} employés répartis sur {school.departments.length} départements</p>
+          <p className="page-subtitle">{activeEmployees.length} employés répartis sur {school.departments.length} départements</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un employé</button>
+        <div className="page-header-actions">
+          <button className="btn btn-ghost" onClick={() => setShowTrash(true)}><Trash size={15} /> Corbeille</button>
+          <button className="btn btn-outline" onClick={() => setShowImport(true)}><Upload size={15} /> Importer</button>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Ajouter un employé</button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
@@ -90,7 +102,7 @@ export default function Employees() {
                 </td>
                 <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(e)}><Pencil size={14} /></button>
-                  <button className="btn btn-ghost btn-sm" disabled={busyId === e.id} onClick={() => removeEmployee(e.id)}>
+                  <button className="btn btn-ghost btn-sm" title="Mettre à la corbeille" disabled={busyId === e.id} onClick={() => removeEmployee(e.id)}>
                     <Trash2 size={14} />
                   </button>
                 </td>
@@ -101,6 +113,12 @@ export default function Employees() {
         </table>
       </div>
 
+      {showTrash && (
+        <TrashEmployeesDialog school={school} onClose={() => setShowTrash(false)} onChanged={refresh} />
+      )}
+      {showImport && (
+        <ImportEmployeesDialog schoolId={school.id} departments={school.departments} onClose={() => setShowImport(false)} onImported={refresh} />
+      )}
       {showAdd && (
         <EmployeeModal school={school} onClose={() => setShowAdd(false)} onSaved={async () => { await refresh(); setShowAdd(false); }} />
       )}
@@ -108,6 +126,66 @@ export default function Employees() {
         <EmployeeModal school={school} employee={editTarget} onClose={() => setEditTarget(null)} onSaved={async () => { await refresh(); setEditTarget(null); }} />
       )}
     </>
+  );
+}
+
+/** Trash: employees soft-deleted from the roster, recoverable until permanently removed. */
+function TrashEmployeesDialog({
+  school, onClose, onChanged,
+}: { school: School; onClose: () => void; onChanged: () => void | Promise<void> }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const items = school.employees.filter((e) => !!e.deletedAt).sort((a, b) => (b.deletedAt || "").localeCompare(a.deletedAt || ""));
+
+  async function restore(id: string) {
+    setBusyId(id);
+    try {
+      await api.restoreEmployee(school.id, id);
+      await onChanged();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function destroy(id: string) {
+    setBusyId(id);
+    try {
+      await api.permanentlyDeleteEmployee(school.id, id);
+      await onChanged();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-title">Corbeille — employés</p>
+            <p className="modal-sub">Un employé retiré reste récupérable ici, et ses fiches de paie déjà générées restent intactes. La suppression définitive ne peut pas être annulée.</p>
+          </div>
+          <button className="close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body">
+          {items.length === 0 && <div style={{ fontSize: 13, color: "var(--muted)" }}>La corbeille est vide.</div>}
+          {items.map((e) => (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13.5 }}>{e.name}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{e.position} · supprimé le {e.deletedAt?.slice(0, 10)}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button className="btn btn-outline btn-sm" disabled={busyId === e.id} onClick={() => restore(e.id)}>Restaurer</button>
+                <button className="btn btn-ghost btn-sm" title="Supprimer définitivement" disabled={busyId === e.id} onClick={() => destroy(e.id)}><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Fermer</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
