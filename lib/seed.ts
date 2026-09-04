@@ -563,6 +563,33 @@ async function seedUsers(schools: School[]) {
 }
 
 /**
+ * Demo/seed accounts added after an install's first boot (like the
+ * cashier role) never get created by seedUsers() above — that block only
+ * runs once, when the users collection is completely empty. This backfills
+ * any such accounts by email, one at a time, so an existing database
+ * self-heals on the next server start instead of requiring a manual reseed.
+ */
+async function backfillDemoAccounts() {
+  const db = await getDb();
+  const pw = (p: string) => bcrypt.hashSync(p, 8);
+  const users = db.collection<AppUser>("users");
+
+  const cashierEmail = "caisse.cedres@groupescolaire.cm";
+  const hasCashier = await users.findOne({ email: cashierEmail });
+  if (!hasCashier) {
+    // Piggyback on the Cèdres school admin account, which is guaranteed to
+    // already exist, to find the right schoolId without re-deriving it.
+    const schoolAdmin = await users.findOne({ email: "admin.cedres@groupescolaire.cm" });
+    if (schoolAdmin?.schoolId) {
+      await users.insertOne({
+        id: uid("user"), name: "Caissière Cèdres", email: cashierEmail,
+        passwordHash: pw("caisse1234"), role: "cashier", status: "active", schoolId: schoolAdmin.schoolId,
+      });
+    }
+  }
+}
+
+/**
  * Ensures the database has the full seed set (users across every role +
  * the 5 schools) on first run. Cheap no-op on every call after the first
  * (per server process).
@@ -582,6 +609,8 @@ export async function ensureSeeded(): Promise<void> {
   if (userCount === 0) {
     const currentSchools = schools.length ? schools : (await db.collection<School>("schools").find({}).toArray());
     await seedUsers(currentSchools);
+  } else {
+    await backfillDemoAccounts();
   }
 
   await db.collection("users").createIndex({ email: 1 }, { unique: true });
