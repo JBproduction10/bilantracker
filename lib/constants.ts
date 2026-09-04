@@ -119,6 +119,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "salary_grid.submit": "Grille salariale envoyée",
   "salary_grid.apply": "Grille salariale appliquée et fiches générées",
   "salary_grid.reject": "Grille salariale refusée",
+  "payslip.notify_ready": ""
 };
 
 export const SALARY_GRID_STATUS_LABELS: Record<SalaryGridStatus, string> = {
