@@ -246,6 +246,46 @@ export async function sendReceiptEmail({
   return { simulated: !!result.simulated, messageId: result.messageId ?? "" };
 }
 
+/* ------------------------- generic notification email ------------------------- */
+
+export interface SendNotificationEmailArgs {
+  to: string;
+  name?: string;
+  title: string;
+  message: string;
+  /** Path within the app the button should open, e.g. "/purchase-orders". Defaults to the app's home. */
+  link?: string;
+  schoolId?: string | null;
+}
+
+/**
+ * Mirrors an in-app notification (the bell icon) by email, so a recipient
+ * who isn't currently logged in still finds out — a purchase order
+ * waiting on Bonté Service, a salary grid decided, a school flagging
+ * payroll as ready to send, etc. One toggle ("inApp" in Settings → Email)
+ * covers every NotificationType, unlike invite/passwordReset/payslip/
+ * receipt which each gate one specific direct-action email.
+ */
+export async function sendNotificationEmail({
+  to, name, title, message, link, schoolId,
+}: SendNotificationEmailArgs): Promise<SendResult> {
+  const path = link ? (link.startsWith("/") ? link : `/${link}`) : "/dashboard";
+  const target = `${baseUrl()}${path}`;
+  return sendVia("inApp", {
+    to,
+    subject: title,
+    html: wrapEmailHtml({
+      heading: title,
+      body: `${name ? `Bonjour ${escapeHtml(name)}, ` : ""}${escapeHtml(message)}`,
+      buttonLabel: "Voir dans École Bilan",
+      link: target,
+      footnote: "Vous recevez cet email car cette notification vous concerne dans École Bilan. Vous pouvez désactiver ces emails dans Paramètres → Email.",
+    }),
+    link: target,
+    schoolId,
+  });
+}
+
 /* --------------------------------- shared --------------------------------- */
 
 function money(amount: number): string {

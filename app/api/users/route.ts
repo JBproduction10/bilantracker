@@ -24,7 +24,9 @@ export const POST = withAuth(async (req, _ctx, user) => {
   });
 
   // Waiting for them once they've set their password and logged in for
-  // the first time — best-effort, never blocks account creation.
+  // the first time — best-effort, never blocks account creation. Skip the
+  // mirrored email here since sendInviteEmail (inside users.createUser,
+  // above) already emailed this exact person moments ago.
   try {
     await notifyUsers([created.id], {
       schoolId: created.schoolId,
@@ -32,6 +34,7 @@ export const POST = withAuth(async (req, _ctx, user) => {
       title: "Bienvenue sur École Bilan",
       message: `Vous avez été ajouté(e) en tant que ${ROLE_LABELS[created.role]} par ${user.name || user.email || "l'administrateur"}.`,
       link: "/dashboard",
+      skipEmail: true,
     });
   } catch (notifyErr) {
     console.error("Failed to create welcome notification:", notifyErr);

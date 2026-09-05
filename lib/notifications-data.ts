@@ -1,5 +1,6 @@
 import { getDb } from "./mongodb";
 import { uid } from "./uid";
+import { sendNotificationEmail } from "./mailer";
 import type { Notification, NotificationType } from "./types";
 
 async function collection() {
@@ -13,6 +14,12 @@ export interface NotifyInput {
   title: string;
   message: string;
   link?: string;
+  /**
+   * Skip the mirrored email for this call — used only when the caller is
+   * already sending a purpose-built email of its own (e.g. the account
+   * invite email), so the recipient isn't emailed twice for one event.
+   */
+  skipEmail?: boolean;
 }
 
 /**
@@ -22,6 +29,12 @@ export interface NotifyInput {
  * the action that triggered it, so callers are expected to fire this and
  * not let a failure here bubble up. Duplicate ids are collapsed so nobody
  * gets the same notification twice.
+ *
+ * Also emails every recipient the same title/message (best-effort, gated
+ * by the "inApp" toggle in Settings → Email) — an in-app-only notification
+ * is invisible to anyone who isn't already logged in and looking at the
+ * bell icon, which defeats the point for anything time-sensitive like a
+ * purchase order or a payroll waiting to be sent.
  */
 export async function notifyUsers(userIds: string[], input: NotifyInput): Promise<void> {
   const unique = [...new Set(userIds)].filter(Boolean);
@@ -41,6 +54,33 @@ export async function notifyUsers(userIds: string[], input: NotifyInput): Promis
       createdAt: at,
     })),
   );
+
+  if (input.skipEmail) return;
+  try {
+    const db = await getDb();
+    const recipients = await db
+      .collection<{ id: string; email: string; name: string }>("users")
+      .find({ id: { $in: unique } }, { projection: { _id: 0, id: 1, email: 1, name: 1 } })
+      .toArray();
+    await Promise.all(
+      recipients
+        .filter((r) => r.email)
+        .map((r) =>
+          sendNotificationEmail({
+            to: r.email,
+            name: r.name,
+            title: input.title,
+            message: input.message,
+            link: input.link,
+            schoolId: input.schoolId,
+          }).catch((err) => console.error(`Failed to email notification to ${r.email}:`, err)),
+        ),
+    );
+  } catch (err) {
+    // Never let an email hiccup take down the in-app notification that
+    // already succeeded above.
+    console.error("Failed to send notification emails:", err);
+  }
 }
 
 export interface ListNotificationsResult {

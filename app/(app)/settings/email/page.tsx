@@ -11,7 +11,7 @@ interface EmailConfigView {
   smtp: { host: string; port: number; secure: boolean; user: string; hasPassword: boolean };
   sendgrid: { hasApiKey: boolean };
   resend: { hasApiKey: boolean };
-  notifications: { invite: boolean; passwordReset: boolean; payslip: boolean; receipt: boolean };
+  notifications: { invite: boolean; passwordReset: boolean; payslip: boolean; receipt: boolean; inApp: boolean };
   configured: boolean;
   updatedAt: string | null;
 }
@@ -35,6 +35,10 @@ const NOTIFICATION_LABEL: Record<keyof EmailConfigView["notifications"], { label
   passwordReset: { label: "Réinitialisation de mot de passe", hint: "Email envoyé sur demande d'un utilisateur." },
   payslip: { label: "Fiches de paie", hint: "Email envoyé quand une fiche de paie est envoyée à un employé." },
   receipt: { label: "Reçus de paiement", hint: "Email envoyé quand un reçu est transmis à un parent." },
+  inApp: {
+    label: "Notifications de l'application",
+    hint: "Email envoyé en plus de la cloche 🔔 pour chaque notification (bons de commande, grille salariale, fiches de paie prêtes, nouveaux comptes…).",
+  },
 };
 
 const emptyDraft: SchoolDraft = { fromName: "", fromEmail: "", replyTo: "" };

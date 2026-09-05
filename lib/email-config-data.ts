@@ -34,6 +34,8 @@ export interface EmailConfigDoc {
     passwordReset: boolean;
     payslip: boolean;
     receipt: boolean;
+    /** Mirrors every in-app notification (bell icon) by email — purchase orders, salary grid, payroll readiness, etc. */
+    inApp: boolean;
   };
   updatedAt: string;
 }
@@ -45,6 +47,7 @@ export const DEFAULT_NOTIFICATIONS: EmailConfigDoc["notifications"] = {
   passwordReset: true,
   payslip: true,
   receipt: true,
+  inApp: true,
 };
 
 export const DEFAULT_SENDER_IDENTITY: SenderIdentity = {

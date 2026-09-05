@@ -26,6 +26,7 @@ function toClientShape(config: EmailConfigDoc | null) {
       passwordReset: config?.notifications?.passwordReset ?? true,
       payslip: config?.notifications?.payslip ?? true,
       receipt: config?.notifications?.receipt ?? true,
+      inApp: config?.notifications?.inApp ?? true,
     },
     configured: Boolean(config),
     updatedAt: config?.updatedAt ?? null,
