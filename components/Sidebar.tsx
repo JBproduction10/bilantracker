@@ -7,10 +7,12 @@ import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Users, Building2, Landmark, SlidersHorizontal, FileText, Send,
   GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History, ClipboardList, Package, Coins, X, Briefcase,
+  ChevronsUpDown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { ROLE_LABELS } from "@/lib/constants";
+import { usePromoterWorkspace } from "@/context/PromoterContext";
 
 interface NavItem {
   href: string;
@@ -153,6 +155,7 @@ export default function Sidebar({
 }: { mobileOpen?: boolean; onClose?: () => void } = {}) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { isSuperAdmin, activePromoter } = usePromoterWorkspace();
   const user = session?.user;
   const role = (user?.role || "school_admin") as Role;
   const sections = NAV_BY_ROLE[role] || [];
@@ -169,6 +172,19 @@ export default function Sidebar({
           <X size={18} />
         </button>
       </div>
+
+      {isSuperAdmin && activePromoter && (
+        <Link href="/promoters" className="sidebar-workspace" title="Changer de promoteur">
+          <div className="avatar-sm">{activePromoter.name.slice(0, 2).toUpperCase()}</div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.3 }}>Promoteur</div>
+            <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {activePromoter.name}
+            </div>
+          </div>
+          <ChevronsUpDown size={14} style={{ color: "var(--muted)", flexShrink: 0 }} />
+        </Link>
+      )}
 
       {sections.map((section) => (
         <React.Fragment key={section.section}>

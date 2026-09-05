@@ -6,17 +6,7 @@ import {
 } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import type { Role } from "@/lib/types";
-
-const ROLE_HOME: Record<Role, string> = {
-  super_admin: "/dashboard",
-  promoter: "/dashboard",
-  school_admin: "/dashboard",
-  finance: "/dashboard",
-  teacher: "/dashboard",
-  treasury: "/dashboard",
-  logistics: "/dashboard",
-  cashier: "/dashboard",
-};
+import { ROLE_HOME } from "@/lib/roleHome";
 
 export default async function LandingPage() {
   const session = await getServerSession(authOptions);

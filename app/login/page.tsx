@@ -3,8 +3,10 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { GraduationCap, ChevronRight } from "lucide-react";
+import { ROLE_HOME } from "@/lib/roleHome";
+import type { Role } from "@/lib/types";
 
 const DEMO_ACCOUNTS = [
   { label: "Super Admin (nous)", email: "admin@ledger.io", password: "admin1234", desc: "Gestion complète du site" },
@@ -43,7 +45,9 @@ export default function LoginPage() {
     if (res?.error) {
       setError("Cet email ou ce mot de passe est incorrect. Si vous venez d'être invité, vérifiez d'abord votre email pour créer votre mot de passe.");
     } else {
-      router.push("/dashboard");
+      const session = await getSession();
+      const role = session?.user?.role as Role | undefined;
+      router.push((role && ROLE_HOME[role]) || "/dashboard");
       router.refresh();
     }
   }

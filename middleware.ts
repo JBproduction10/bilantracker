@@ -2,17 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { Role } from "@/lib/types";
-
-const ROLE_HOME: Record<Role, string> = {
-  super_admin: "/dashboard",
-  promoter: "/dashboard",
-  school_admin: "/dashboard",
-  finance: "/dashboard",
-  teacher: "/my-payslips",
-  treasury: "/dashboard",
-  logistics: "/inventory",
-  cashier: "/students",
-};
+import { ROLE_HOME } from "@/lib/roleHome";
 
 /** Path prefixes each role is allowed into. "*" means everything under the matcher. */
 const ROLE_ALLOWED: Record<Role, string[]> = {

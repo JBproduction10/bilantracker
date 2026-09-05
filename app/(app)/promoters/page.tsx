@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, X, Pencil, Trash2, Landmark, Coins } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, X, Pencil, Trash2, Landmark, Coins, ArrowRight, Check } from "lucide-react";
 import { api, type PromoterWithSchools } from "@/lib/apiClient";
+import { usePromoterWorkspace } from "@/context/PromoterContext";
 import type { PromoterInput } from "@/lib/types";
 
 interface ModalState {
@@ -11,29 +13,29 @@ interface ModalState {
 }
 
 export default function PromotersPage() {
-  const [promoters, setPromoters] = useState<PromoterWithSchools[]>([]);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const { promoters, loading, activePromoterId, setActivePromoterId, refresh } = usePromoterWorkspace();
   const [modal, setModal] = useState<ModalState | null>(null);
   const [removeTarget, setRemoveTarget] = useState<PromoterWithSchools | null>(null);
   const [error, setError] = useState("");
 
-  const load = async () => {
-    setLoading(true);
-    setPromoters(await api.listPromoters());
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
+  useEffect(() => { refresh(); }, [refresh]);
 
   async function confirmRemove() {
     try {
       await api.removePromoter(removeTarget!.id);
+      if (removeTarget!.id === activePromoterId) setActivePromoterId(null);
       setRemoveTarget(null);
-      await load();
+      await refresh();
     } catch (err) {
       setError((err as Error).message);
       setRemoveTarget(null);
     }
+  }
+
+  function enterWorkspace(p: PromoterWithSchools) {
+    setActivePromoterId(p.id);
+    router.push(p.schools.length === 0 ? "/schools" : "/dashboard");
   }
 
   return (
@@ -43,6 +45,7 @@ export default function PromotersPage() {
           <h1 className="page-title">Promoteurs</h1>
           <p className="page-subtitle">
             Chaque promoteur gère un ou plusieurs écoles, avec ou sans sa propre société de trésorerie.
+            Choisissez-en un pour entrer dans son espace de gestion.
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={15} /> Ajouter un promoteur</button>
@@ -51,52 +54,70 @@ export default function PromotersPage() {
       {error && <div className="error-text" style={{ marginBottom: 14 }}>{error}</div>}
 
       <div className="dept-grid">
-        {promoters.map((p) => (
-          <div key={p.id} className="card dept-card">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <div className="avatar" style={{ background: "#1F6E4D", width: 38, height: 38, borderRadius: 9, fontSize: 13 }}>
-                {p.name.slice(0, 2).toUpperCase()}
+        {promoters.map((p) => {
+          const isActive = p.id === activePromoterId;
+          return (
+            <div
+              key={p.id}
+              className="card dept-card"
+              onClick={() => enterWorkspace(p)}
+              style={{ cursor: "pointer", borderColor: isActive ? "var(--green)" : undefined, position: "relative" }}
+            >
+              {isActive && (
+                <span className="pill pill-active" style={{ position: "absolute", top: 14, right: 14, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Check size={11} /> Espace actuel
+                </span>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div className="avatar" style={{ background: "#1F6E4D", width: 38, height: 38, borderRadius: 9, fontSize: 13 }}>
+                  {p.name.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                    {p.schools.length} école{p.schools.length !== 1 ? "s" : ""}
+                  </div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                  {p.schools.length} école{p.schools.length !== 1 ? "s" : ""}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, fontSize: 12.5 }}>
+                {p.hasTreasury ? (
+                  <span className="pill pill-sent"><Coins size={11} style={{ marginRight: 4 }} />{p.treasuryName || "Bonté Service"}</span>
+                ) : (
+                  <span className="pill pill-draft">Chaque école gère ses propres finances</span>
+                )}
+              </div>
+
+              {p.schools.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                  {p.schools.map((s) => (
+                    <span key={s.id} className="pill pill-active" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <Landmark size={11} /> {s.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--green-dark)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  Gérer <ArrowRight size={13} />
+                </span>
+                <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setModal({ mode: "edit", promoter: p })}><Pencil size={14} /></button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    disabled={p.schools.length > 0}
+                    style={p.schools.length > 0 ? { opacity: 0.35, cursor: "not-allowed" } : {}}
+                    title={p.schools.length > 0 ? "Réaffectez d'abord les écoles de ce promoteur" : ""}
+                    onClick={() => p.schools.length === 0 && setRemoveTarget(p)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, fontSize: 12.5 }}>
-              {p.hasTreasury ? (
-                <span className="pill pill-sent"><Coins size={11} style={{ marginRight: 4 }} />{p.treasuryName || "Bonté Service"}</span>
-              ) : (
-                <span className="pill pill-draft">Chaque école gère ses propres finances</span>
-              )}
-            </div>
-
-            {p.schools.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                {p.schools.map((s) => (
-                  <span key={s.id} className="pill pill-active" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <Landmark size={11} /> {s.name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => setModal({ mode: "edit", promoter: p })}><Pencil size={14} /></button>
-              <button
-                className="btn btn-ghost btn-sm"
-                disabled={p.schools.length > 0}
-                style={p.schools.length > 0 ? { opacity: 0.35, cursor: "not-allowed" } : {}}
-                title={p.schools.length > 0 ? "Réaffectez d'abord les écoles de ce promoteur" : ""}
-                onClick={() => p.schools.length === 0 && setRemoveTarget(p)}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {!loading && promoters.length === 0 && <div className="card empty">Aucun promoteur pour l&apos;instant.</div>}
       </div>
 
@@ -105,7 +126,7 @@ export default function PromotersPage() {
           mode={modal.mode}
           promoter={modal.promoter}
           onClose={() => setModal(null)}
-          onSaved={async () => { await load(); setModal(null); }}
+          onSaved={async () => { await refresh(); setModal(null); }}
         />
       )}
 

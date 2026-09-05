@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { Plus, Trash2, X, Mail, Send } from "lucide-react";
-import { api, type PromoterWithSchools } from "@/lib/apiClient";
+import { api } from "@/lib/apiClient";
+import { useSchools } from "@/context/SchoolContext";
+import { usePromoterWorkspace } from "@/context/PromoterContext";
 import { initials } from "@/lib/utils";
 import { ROLE_LABELS, ROLES, USER_STATUS_LABELS } from "@/lib/constants";
 import { isValidEmail } from "@/lib/validation";
@@ -11,9 +13,9 @@ import type { AppUser, Role, School } from "@/lib/types";
 type SafeUser = Omit<AppUser, "passwordHash" | "inviteToken">;
 
 export default function UsersPage() {
+  const { schools } = useSchools();
+  const { activePromoter, activePromoterId } = usePromoterWorkspace();
   const [users, setUsers] = useState<SafeUser[]>([]);
-  const [schools, setSchools] = useState<School[]>([]);
-  const [promoters, setPromoters] = useState<PromoterWithSchools[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
@@ -21,21 +23,21 @@ export default function UsersPage() {
 
   const load = async () => {
     setLoading(true);
-    const [u, s, p] = await Promise.all([api.listUsers(), api.listSchools(), api.listPromoters()]);
-    setUsers(u);
-    setSchools(s);
-    setPromoters(p);
+    setUsers(await api.listUsers());
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
+  // "Comptes" is scoped to the current promoter's workspace, same as
+  // everything else: this promoter's own promoter/treasury account(s), plus
+  // every account belonging to one of its schools. Other tenants' accounts
+  // (and any other super_admin) simply don't show up here.
+  const schoolIds = new Set(schools.map((s) => s.id));
+  const visibleUsers = users.filter((u) => (u.schoolId && schoolIds.has(u.schoolId)) || (u.promoterId && u.promoterId === activePromoterId));
+
   function schoolName(id?: string) {
     return schools.find((s) => s.id === id)?.name || "—";
-  }
-
-  function promoterName(id?: string) {
-    return promoters.find((p) => p.id === id)?.name || "—";
   }
 
   async function remove(id: string) {
@@ -59,7 +61,7 @@ export default function UsersPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Comptes</h1>
-          <p className="page-subtitle">{users.length} comptes sur l&apos;ensemble du site</p>
+          <p className="page-subtitle">{visibleUsers.length} comptes dans l&apos;espace {activePromoter?.name || ""}</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Inviter un compte</button>
       </div>
@@ -78,7 +80,7 @@ export default function UsersPage() {
         <table className="tbl">
           <thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>École</th><th>Statut</th><th></th></tr></thead>
           <tbody>
-            {users.map((u) => (
+            {visibleUsers.map((u) => (
               <tr key={u.id}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -88,7 +90,7 @@ export default function UsersPage() {
                 </td>
                 <td style={{ color: "var(--muted)" }}>{u.email}</td>
                 <td><span className="pill pill-active">{ROLE_LABELS[u.role]}</span></td>
-                <td>{u.schoolId ? schoolName(u.schoolId) : u.promoterId ? promoterName(u.promoterId) : "Toutes"}</td>
+                <td>{u.schoolId ? schoolName(u.schoolId) : u.promoterId ? activePromoter?.name || "—" : "Toutes"}</td>
                 <td><span className={"pill " + (u.status === "active" ? "pill-sent" : "pill-draft")}>{USER_STATUS_LABELS[u.status]}</span></td>
                 <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
                   {u.status === "pending" && (
@@ -100,7 +102,7 @@ export default function UsersPage() {
                 </td>
               </tr>
             ))}
-            {!loading && users.length === 0 && <tr><td colSpan={6} className="empty">Aucun compte.</td></tr>}
+            {!loading && visibleUsers.length === 0 && <tr><td colSpan={6} className="empty">Aucun compte dans cet espace.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -108,7 +110,7 @@ export default function UsersPage() {
       {showAdd && (
         <AddUserModal
           schools={schools}
-          promoters={promoters}
+          promoterId={activePromoterId || undefined}
           onClose={() => setShowAdd(false)}
           onAdded={async (simulated) => {
             await load();
@@ -123,13 +125,12 @@ export default function UsersPage() {
 }
 
 function AddUserModal({
-  schools, promoters, onClose, onAdded,
-}: { schools: School[]; promoters: PromoterWithSchools[]; onClose: () => void; onAdded: (simulated: boolean) => void | Promise<void> }) {
+  schools, promoterId, onClose, onAdded,
+}: { schools: School[]; promoterId?: string; onClose: () => void; onAdded: (simulated: boolean) => void | Promise<void> }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("school_admin");
   const [schoolId, setSchoolId] = useState(schools[0]?.id || "");
-  const [promoterId, setPromoterId] = useState(promoters[0]?.id || "");
   const [employeeId, setEmployeeId] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -147,8 +148,8 @@ function AddUserModal({
       setError("Cette adresse email n'est pas valide.");
       return;
     }
-    if (needsPromoter && !promoterId) {
-      setError("Choisissez le promoteur de ce compte.");
+    if (needsSchool && !schoolId) {
+      setError("Créez d'abord une école dans cet espace.");
       return;
     }
     setBusy(true);
@@ -190,22 +191,19 @@ function AddUserModal({
           {needsSchool && (
             <>
               <label className="label">École</label>
-              <select className="select-el" style={{ marginBottom: 14 }} value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
-                {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              {schools.length > 0 ? (
+                <select className="select-el" style={{ marginBottom: 14 }} value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
+                  {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              ) : (
+                <div className="error-text" style={{ marginBottom: 14 }}>Créez d&apos;abord une école dans cet espace.</div>
+              )}
             </>
           )}
           {needsPromoter && (
-            <>
-              <label className="label">Promoteur</label>
-              <select className="select-el" style={{ marginBottom: 14 }} value={promoterId} onChange={(e) => setPromoterId(e.target.value)}>
-                <option value="" disabled>Choisir un promoteur…</option>
-                {promoters.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: -8, marginBottom: 14 }}>
-                Ce compte ne verra que les écoles de ce promoteur, jamais celles d&apos;un autre.
-              </div>
-            </>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 14 }}>
+              Ce compte sera rattaché à ce promoteur — il ne verra que les écoles de cet espace, jamais celles d&apos;un autre.
+            </div>
           )}
           {role === "teacher" && selectedSchool && (
             <>

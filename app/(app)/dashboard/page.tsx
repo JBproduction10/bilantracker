@@ -40,7 +40,7 @@ export default function Dashboard() {
 
 /* ---------- super_admin & school_admin: single-school operational view ---------- */
 function SchoolDashboard() {
-  const { school } = useSchools();
+  const { school, loading } = useSchools();
   const [period, setPeriod] = useState(PERIODS[2]);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [report, setReport] = useState<SchoolReport | null>(null);
@@ -52,7 +52,21 @@ function SchoolDashboard() {
     api.getSchoolReport(school.id, period).then(setReport).catch(() => setReport(null));
   }, [school, period]);
 
-  if (!school) return null;
+  if (!school) {
+    if (loading) return null;
+    return (
+      <div className="card empty" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 24px" }}>
+        <Landmark size={28} color="var(--muted)" />
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Aucune école dans cet espace pour l&apos;instant</div>
+        <p style={{ fontSize: 13, color: "var(--muted)", textAlign: "center", maxWidth: 380 }}>
+          Ajoutez la première école de ce promoteur pour commencer à suivre ses effectifs, ses paiements et sa paie.
+        </p>
+        <button className="btn btn-primary" onClick={() => router.push("/schools")}>
+          <ArrowRight size={14} /> Aller à Écoles
+        </button>
+      </div>
+    );
+  }
 
   // Soft-deleted employees/students stay in the document (for payslip/fee
   // history) but shouldn't count toward headcount or payroll totals.
