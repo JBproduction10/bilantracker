@@ -4,7 +4,7 @@ import { logAudit } from "@/lib/audit";
 import { canReadSchool, canManageExpenses, requireCondition } from "@/lib/authz";
 
 export const GET = withAuth(async (req, { params }, user) => {
-  requireCondition(canReadSchool(user, params.sid));
+  requireCondition(await canReadSchool(user, params.sid));
   const period = new URL(req.url).searchParams.get("period") || "";
   const expenses = await data.listExpenses(params.sid, period);
   return json(expenses);

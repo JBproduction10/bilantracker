@@ -8,7 +8,7 @@ import { canViewPurchaseOrders, canSubmitPurchaseOrder, requireCondition } from 
 import type { PurchaseOrderStatus } from "@/lib/types";
 
 export const GET = withAuth(async (req, { params }, user) => {
-  requireCondition(canViewPurchaseOrders(user, params.sid));
+  requireCondition(await canViewPurchaseOrders(user, params.sid));
   const status = new URL(req.url).searchParams.get("status") as PurchaseOrderStatus | null;
   const orders = await data.listPurchaseOrders(params.sid, status || undefined);
   return json(orders);
@@ -24,12 +24,16 @@ export const POST = withAuth(async (req, { params }, user) => {
     details: { category: order.category, amount: order.amountRequested, period: order.period },
   });
 
-  // Best-effort: let Bonté Service and the site admin know a new purchase
-  // order needs a decision. Never let a notification hiccup fail the
-  // submission itself.
+  // Best-effort: let this promoter's own Bonté Service (if it has one) and
+  // the site admin know a new purchase order needs a decision. Never let a
+  // notification hiccup fail the submission itself.
   try {
-    const decidingIds = await listUserIdsByRole(["treasury", "super_admin"]);
-    await notifyUsers(decidingIds, {
+    const promoterId = await data.getSchoolPromoterId(params.sid);
+    const [treasuryIds, superAdminIds] = await Promise.all([
+      promoterId ? listUserIdsByRole(["treasury"], undefined, promoterId) : Promise.resolve([]),
+      listUserIdsByRole(["super_admin"]),
+    ]);
+    await notifyUsers([...treasuryIds, ...superAdminIds], {
       schoolId: params.sid,
       type: "purchase_order.submitted",
       title: "Nouveau bon de commande",

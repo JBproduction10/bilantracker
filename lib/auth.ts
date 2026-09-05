@@ -50,6 +50,7 @@ export const authOptions: AuthOptions = {
           email: user.email,
           role: user.role,
           schoolId: user.schoolId,
+          promoterId: user.promoterId,
           employeeId: user.employeeId,
         };
       },
@@ -62,6 +63,7 @@ export const authOptions: AuthOptions = {
         token.uid = u.id;
         token.role = u.role;
         token.schoolId = u.schoolId;
+        token.promoterId = u.promoterId;
         token.employeeId = u.employeeId;
       }
       return token;
@@ -71,6 +73,7 @@ export const authOptions: AuthOptions = {
         session.user.id = token.uid;
         session.user.role = token.role;
         session.user.schoolId = token.schoolId;
+        session.user.promoterId = token.promoterId;
         session.user.employeeId = token.employeeId;
       }
       return session;

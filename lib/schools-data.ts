@@ -13,8 +13,9 @@ import type {
   InventoryItem, InventoryItemInput, StockMovement, StockMovementInput, InventorySummary,
   NetworkInventoryOverview, NetworkInventorySchoolSummary, NetworkInventoryStockRow, NetworkStockMovementRow,
   SalaryGridSubmission, SalaryGridSubmissionInput, SalaryGridDecisionInput, SalaryGridStatus, SalaryGridEntry,
-  Cycle,
+  Cycle, SessionUser,
 } from "./types";
+import { getPromoter } from "./promoters-data";
 
 const VALID_CYCLES: Cycle[] = ["primaire", "orientation", "superieur"];
 
@@ -59,13 +60,17 @@ export async function getSchool(id: string): Promise<School | null> {
   return strip(await col.findOne({ id }));
 }
 
-export async function createSchool({ name, domain, description, color }: SchoolInput): Promise<School> {
+export async function createSchool({ name, domain, description, color, promoterId }: SchoolInput): Promise<School> {
+  if (!promoterId) throw new Error("Choose which promoter this school belongs to.");
+  const promoter = await getPromoter(promoterId);
+  if (!promoter) throw new Error("That promoter doesn't exist.");
   const col = await collection();
   const cleanDomain = String(domain).trim().toLowerCase();
   const clash = await col.findOne({ domain: cleanDomain });
   if (clash) throw new Error("Another school already uses this domain.");
   const school: School = {
     id: uid("sch"),
+    promoterId,
     name: name.trim(),
     domain: cleanDomain,
     description: description || "",
@@ -88,7 +93,7 @@ export async function createSchool({ name, domain, description, color }: SchoolI
   return school;
 }
 
-export async function updateSchool(id: string, { name, domain, description, color }: Partial<SchoolInput>): Promise<School> {
+export async function updateSchool(id: string, { name, domain, description, color, promoterId }: Partial<SchoolInput>): Promise<School> {
   const col = await collection();
   const school = await col.findOne({ id });
   if (!school) throw new Error("School not found.");
@@ -101,8 +106,37 @@ export async function updateSchool(id: string, { name, domain, description, colo
   if (name) school.name = name.trim();
   if (description !== undefined) school.description = description;
   if (color) school.color = color;
+  if (promoterId && promoterId !== school.promoterId) {
+    const promoter = await getPromoter(promoterId);
+    if (!promoter) throw new Error("That promoter doesn't exist.");
+    school.promoterId = promoterId;
+  }
   await col.replaceOne({ id }, school);
   return strip(school) as School;
+}
+
+/**
+ * Which school ids a given account is allowed to see. `undefined` means no
+ * restriction (the super admin). A promoter or treasury account is scoped
+ * to its own promoter's schools only — never another promoter's, even
+ * though both roles are otherwise "network-wide" within their own tenant.
+ * Any other role is scoped to its single assigned school, if any.
+ */
+export async function getVisibleSchoolIds(user: SessionUser): Promise<string[] | undefined> {
+  if (user.role === "super_admin") return undefined;
+  if (user.role === "promoter" || user.role === "treasury") {
+    if (!user.promoterId) return [];
+    const schools = await listSchools();
+    return schools.filter((s) => s.promoterId === user.promoterId).map((s) => s.id);
+  }
+  return user.schoolId ? [user.schoolId] : [];
+}
+
+/** Cheap lookup of just a school's promoterId, used by authz checks that shouldn't load the whole document. */
+export async function getSchoolPromoterId(schoolId: string): Promise<string | undefined> {
+  const col = await collection();
+  const doc = await col.findOne({ id: schoolId }, { projection: { promoterId: 1 } });
+  return doc?.promoterId;
 }
 
 export async function deleteSchool(id: string): Promise<void> {
@@ -665,8 +699,10 @@ export async function getSchoolReport(sid: string, period: string): Promise<Scho
   return computeSchoolReport(school, period);
 }
 
-export async function getAllReports(period: string): Promise<SchoolReport[]> {
-  const schools = await listSchools();
+/** `schoolIds`, when provided, scopes the result to that set (a promoter/treasury account's own network) — omit for the super admin's unrestricted view. */
+export async function getAllReports(period: string, schoolIds?: string[]): Promise<SchoolReport[]> {
+  let schools = await listSchools();
+  if (schoolIds) schools = schools.filter((s) => schoolIds.includes(s.id));
   return schools.map((s) => computeSchoolReport(s, period));
 }
 
@@ -748,8 +784,9 @@ export function computeNetworkInventoryOverview(schools: School[], period: strin
   };
 }
 
-export async function getNetworkInventoryOverview(period: string): Promise<NetworkInventoryOverview> {
-  const schools = await listSchools();
+export async function getNetworkInventoryOverview(period: string, schoolIds?: string[]): Promise<NetworkInventoryOverview> {
+  let schools = await listSchools();
+  if (schoolIds) schools = schools.filter((s) => schoolIds.includes(s.id));
   return computeNetworkInventoryOverview(schools, period);
 }
 
@@ -864,8 +901,9 @@ export async function listPurchaseOrders(sid: string, status?: PurchaseOrderStat
 }
 
 /** Aggregates purchase orders across every school — the queue Bonté Service actually works from. */
-export async function listAllPurchaseOrders(status?: PurchaseOrderStatus): Promise<PurchaseOrder[]> {
-  const schools = await listSchools();
+export async function listAllPurchaseOrders(status?: PurchaseOrderStatus, schoolIds?: string[]): Promise<PurchaseOrder[]> {
+  let schools = await listSchools();
+  if (schoolIds) schools = schools.filter((s) => schoolIds.includes(s.id));
   const all = schools.flatMap((s) => s.purchaseOrders);
   const list = status ? all.filter((p) => p.status === status) : all;
   return list.sort((a, b) => b.requestedAt - a.requestedAt);
@@ -1048,9 +1086,11 @@ export async function listSalaryGridSubmissions(sid: string, status?: SalaryGrid
 
 /** The network-wide queue the super admin actually works from — every school's pending pushes in one place. */
 export async function listAllSalaryGridSubmissions(
-  status?: SalaryGridStatus
+  status?: SalaryGridStatus,
+  schoolIds?: string[]
 ): Promise<SalaryGridSubmission[]> {
-  const schools = await listSchools();
+  let schools = await listSchools();
+  if (schoolIds) schools = schools.filter((s) => schoolIds.includes(s.id));
 
   const all = schools.flatMap((s) =>
     (s.salaryGridSubmissions || []).filter(

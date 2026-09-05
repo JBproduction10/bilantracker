@@ -7,14 +7,14 @@ import { canViewSalaryGrid, canSubmitSalaryGrid, requireCondition } from "@/lib/
 import type { SalaryGridStatus } from "@/lib/types";
 
 export const GET = withAuth(async (req, { params }, user) => {
-  requireCondition(canViewSalaryGrid(user, params.sid));
+  requireCondition(await canViewSalaryGrid(user, params.sid));
   const status = new URL(req.url).searchParams.get("status") as SalaryGridStatus | null;
   const submissions = await data.listSalaryGridSubmissions(params.sid, status || undefined);
   return json(submissions);
 });
 
 export const POST = withAuth(async (req, { params }, user) => {
-  requireCondition(canSubmitSalaryGrid(user), "Only Bonté Service and the site admin push a salary grid.");
+  requireCondition(await canSubmitSalaryGrid(user, params.sid), "Only Bonté Service and the site admin push a salary grid.");
   const body = await req.json();
   const submission = await data.submitSalaryGrid(params.sid, body, user.name || user.email || undefined);
   await logAudit({

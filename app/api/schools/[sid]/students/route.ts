@@ -5,7 +5,7 @@ import { currentPeriod } from "@/lib/fees";
 import { canReadSchool, canManageStudents, requireCondition } from "@/lib/authz";
 
 export const GET = withAuth(async (req, { params }, user) => {
-  requireCondition(canReadSchool(user, params.sid));
+  requireCondition(await canReadSchool(user, params.sid));
   const period = new URL(req.url).searchParams.get("period") || currentPeriod();
   const students = await data.listStudentsWithLedger(params.sid, period);
   return json(students);

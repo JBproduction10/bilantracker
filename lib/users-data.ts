@@ -35,14 +35,15 @@ export async function listUsers() {
 
 /**
  * Ids of every active account matching the given role(s), optionally
- * narrowed to one school — used to fan out notifications (e.g. every
- * school admin at a given school, or every treasury/super admin
- * network-wide) without loading full user records.
+ * narrowed to one school or one promoter — used to fan out notifications
+ * (e.g. every school admin at a given school, or every treasury account
+ * within one promoter's network) without loading full user records.
  */
-export async function listUserIdsByRole(roles: Role[], schoolId?: string): Promise<string[]> {
+export async function listUserIdsByRole(roles: Role[], schoolId?: string, promoterId?: string): Promise<string[]> {
   const col = await collection();
   const filter: Record<string, unknown> = { role: { $in: roles }, status: "active" };
   if (schoolId) filter.schoolId = schoolId;
+  if (promoterId) filter.promoterId = promoterId;
   const docs = await col.find(filter, { projection: { id: 1 } }).toArray();
   return docs.map((d) => d.id);
 }
@@ -53,7 +54,7 @@ export async function listUserIdsByRole(roles: Role[], schoolId?: string): Promi
  * own password. There is no public sign-up; this invite is the only way
  * a new account comes into existence.
  */
-export async function createUser({ name, email, role, schoolId, employeeId }: UserInput, schoolName?: string) {
+export async function createUser({ name, email, role, schoolId, promoterId, employeeId }: UserInput, schoolName?: string) {
   if (!name || !email || !role) throw new Error("Fill in the name, email, and role.");
   const cleanEmail = assertValidEmail(email, "L'email du compte");
   const col = await collection();
@@ -62,6 +63,9 @@ export async function createUser({ name, email, role, schoolId, employeeId }: Us
   if ((role === "school_admin" || role === "finance" || role === "teacher" || role === "logistics" || role === "cashier") && !schoolId) {
     throw new Error("Choose which school this account belongs to.");
   }
+  if ((role === "promoter" || role === "treasury") && !promoterId) {
+    throw new Error("Choose which promoter this account belongs to.");
+  }
 
   const inviteToken = newToken();
   const user: AppUser = {
@@ -69,6 +73,7 @@ export async function createUser({ name, email, role, schoolId, employeeId }: Us
     status: "pending",
     inviteToken, inviteTokenExpires: Date.now() + INVITE_TTL_MS,
     ...(schoolId ? { schoolId } : {}),
+    ...(promoterId ? { promoterId } : {}),
     ...(employeeId ? { employeeId } : {}),
   };
   await col.insertOne(user);

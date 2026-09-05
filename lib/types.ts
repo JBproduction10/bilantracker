@@ -5,6 +5,31 @@ export type PayslipStatus = "draft" | "sent";
 export type FieldType = "fixed" | "percent";
 export type FieldCategory = "earnings" | "deductions" | "info";
 export type Role = "super_admin" | "promoter" | "school_admin" | "finance" | "teacher" | "treasury" | "logistics" | "cashier";
+
+/**
+ * A promoter group: one network owner, with one or more schools. A
+ * promoter may or may not run a separate treasury company ("Bonté
+ * Service"-style) that centralizes fund requests and payroll pushes across
+ * its own schools — if it doesn't, each of its schools manages its own
+ * finances directly instead of routing them through a treasury role.
+ * This is the tenant boundary: a promoter or treasury account only ever
+ * sees the schools under its own promoterId, never another promoter's.
+ */
+export interface Promoter {
+  id: string;
+  name: string;
+  /** Whether this promoter's network has a dedicated treasury company overseeing fund requests/payroll pushes. */
+  hasTreasury: boolean;
+  /** Display name for the treasury company, e.g. "Bonté Service". Only meaningful when hasTreasury is true. */
+  treasuryName?: string;
+  createdAt: number;
+}
+
+export interface PromoterInput {
+  name: string;
+  hasTreasury?: boolean;
+  treasuryName?: string;
+}
 export type UserStatus = "pending" | "active";
 export type FeeStatus = "paid" | "partial" | "unpaid" | "social_case";
 export type ExpenseCategory = "fuel" | "credit" | "renovation" | "supplies" | "utilities" | "maintenance" | "other";
@@ -314,6 +339,8 @@ export interface Expense {
 
 export interface School {
   id: string;
+  /** Which promoter this school belongs to — the tenant boundary for every network-wide view. */
+  promoterId: string;
   name: string;
   domain: string;
   description: string;
@@ -340,6 +367,8 @@ export interface AppUser {
   passwordHash?: string;
   role: Role;
   schoolId?: string;
+  /** Which promoter this account belongs to — set for "promoter" and "treasury" role accounts, scoping them to that promoter's own schools. */
+  promoterId?: string;
   employeeId?: string;
   status: UserStatus;
   inviteToken?: string;
@@ -354,6 +383,7 @@ export interface SessionUser {
   email?: string | null;
   role: Role;
   schoolId?: string;
+  promoterId?: string;
   employeeId?: string;
 }
 
@@ -438,6 +468,7 @@ export type AuditAction =
   | "field.add" | "field.update" | "field.remove"
   | "payslip.generate" | "payslip.status" | "payslip.send" | "payslip.mark_all_sent" | "payslip.send_all" | "payslip.notify_ready"
   | "school.create" | "school.update" | "school.delete"
+  | "promoter.create" | "promoter.update" | "promoter.delete"
   | "user.create" | "user.remove" | "user.resend_invite"
   | "receipt.send" | "receipt_request.send" | "receipt_request.decline"
   | "purchase_order.submit" | "purchase_order.validate" | "purchase_order.reject" | "purchase_order.execute"
@@ -503,6 +534,8 @@ export interface SchoolInput {
   domain: string;
   description?: string;
   color?: string;
+  /** Required on create — which promoter this school belongs to. */
+  promoterId?: string;
 }
 
 export interface DepartmentInput {
@@ -569,6 +602,8 @@ export interface UserInput {
   email: string;
   role: Role;
   schoolId?: string;
+  /** Required when role is "promoter" or "treasury" — which promoter this account is scoped to. */
+  promoterId?: string;
   employeeId?: string;
 }
 

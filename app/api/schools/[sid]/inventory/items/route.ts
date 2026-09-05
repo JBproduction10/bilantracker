@@ -4,7 +4,7 @@ import { logAudit } from "@/lib/audit";
 import { canViewInventory, canManageInventory, requireCondition } from "@/lib/authz";
 
 export const GET = withAuth(async (_req, { params }, user) => {
-  requireCondition(canViewInventory(user, params.sid));
+  requireCondition(await canViewInventory(user, params.sid));
   const items = await data.listInventoryItems(params.sid);
   return json(items);
 });

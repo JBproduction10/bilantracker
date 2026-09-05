@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Plus, Trash2, X, Mail, Send } from "lucide-react";
-import { api } from "@/lib/apiClient";
+import { api, type PromoterWithSchools } from "@/lib/apiClient";
 import { initials } from "@/lib/utils";
 import { ROLE_LABELS, ROLES, USER_STATUS_LABELS } from "@/lib/constants";
 import { isValidEmail } from "@/lib/validation";
@@ -13,6 +13,7 @@ type SafeUser = Omit<AppUser, "passwordHash" | "inviteToken">;
 export default function UsersPage() {
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
+  const [promoters, setPromoters] = useState<PromoterWithSchools[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
@@ -20,9 +21,10 @@ export default function UsersPage() {
 
   const load = async () => {
     setLoading(true);
-    const [u, s] = await Promise.all([api.listUsers(), api.listSchools()]);
+    const [u, s, p] = await Promise.all([api.listUsers(), api.listSchools(), api.listPromoters()]);
     setUsers(u);
     setSchools(s);
+    setPromoters(p);
     setLoading(false);
   };
 
@@ -30,6 +32,10 @@ export default function UsersPage() {
 
   function schoolName(id?: string) {
     return schools.find((s) => s.id === id)?.name || "—";
+  }
+
+  function promoterName(id?: string) {
+    return promoters.find((p) => p.id === id)?.name || "—";
   }
 
   async function remove(id: string) {
@@ -82,7 +88,7 @@ export default function UsersPage() {
                 </td>
                 <td style={{ color: "var(--muted)" }}>{u.email}</td>
                 <td><span className="pill pill-active">{ROLE_LABELS[u.role]}</span></td>
-                <td>{u.schoolId ? schoolName(u.schoolId) : "Toutes"}</td>
+                <td>{u.schoolId ? schoolName(u.schoolId) : u.promoterId ? promoterName(u.promoterId) : "Toutes"}</td>
                 <td><span className={"pill " + (u.status === "active" ? "pill-sent" : "pill-draft")}>{USER_STATUS_LABELS[u.status]}</span></td>
                 <td style={{ textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
                   {u.status === "pending" && (
@@ -102,6 +108,7 @@ export default function UsersPage() {
       {showAdd && (
         <AddUserModal
           schools={schools}
+          promoters={promoters}
           onClose={() => setShowAdd(false)}
           onAdded={async (simulated) => {
             await load();
@@ -116,17 +123,19 @@ export default function UsersPage() {
 }
 
 function AddUserModal({
-  schools, onClose, onAdded,
-}: { schools: School[]; onClose: () => void; onAdded: (simulated: boolean) => void | Promise<void> }) {
+  schools, promoters, onClose, onAdded,
+}: { schools: School[]; promoters: PromoterWithSchools[]; onClose: () => void; onAdded: (simulated: boolean) => void | Promise<void> }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("school_admin");
   const [schoolId, setSchoolId] = useState(schools[0]?.id || "");
+  const [promoterId, setPromoterId] = useState(promoters[0]?.id || "");
   const [employeeId, setEmployeeId] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const needsSchool = role === "school_admin" || role === "finance" || role === "teacher" || role === "logistics" || role === "cashier";
+  const needsPromoter = role === "promoter" || role === "treasury";
   const selectedSchool = schools.find((s) => s.id === schoolId);
 
   async function submit() {
@@ -138,12 +147,17 @@ function AddUserModal({
       setError("Cette adresse email n'est pas valide.");
       return;
     }
+    if (needsPromoter && !promoterId) {
+      setError("Choisissez le promoteur de ce compte.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const created = await api.createUser({
         name: name.trim(), email: email.trim(), role,
         ...(needsSchool ? { schoolId } : {}),
+        ...(needsPromoter ? { promoterId } : {}),
         ...(role === "teacher" && employeeId ? { employeeId } : {}),
       });
       onAdded(created._invite.simulated);
@@ -179,6 +193,18 @@ function AddUserModal({
               <select className="select-el" style={{ marginBottom: 14 }} value={schoolId} onChange={(e) => setSchoolId(e.target.value)}>
                 {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+            </>
+          )}
+          {needsPromoter && (
+            <>
+              <label className="label">Promoteur</label>
+              <select className="select-el" style={{ marginBottom: 14 }} value={promoterId} onChange={(e) => setPromoterId(e.target.value)}>
+                <option value="" disabled>Choisir un promoteur…</option>
+                {promoters.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: -8, marginBottom: 14 }}>
+                Ce compte ne verra que les écoles de ce promoteur, jamais celles d&apos;un autre.
+              </div>
             </>
           )}
           {role === "teacher" && selectedSchool && (

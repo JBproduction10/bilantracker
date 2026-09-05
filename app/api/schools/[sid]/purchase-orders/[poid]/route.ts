@@ -13,7 +13,7 @@ const DECISION_LABEL: Record<string, string> = {
 };
 
 export const PATCH = withAuth(async (req, { params }, user) => {
-  requireCondition(canDecidePurchaseOrder(user), "Only Bonté Service and the site admin can decide on a purchase order.");
+  requireCondition(await canDecidePurchaseOrder(user, params.sid), "Only Bonté Service and the site admin can decide on a purchase order.");
   const body = await req.json();
   const order = await data.decidePurchaseOrder(params.sid, params.poid, body, user.name || user.email || undefined);
   const action: AuditAction =

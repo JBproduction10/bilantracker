@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   LayoutDashboard, Users, Building2, Landmark, SlidersHorizontal, FileText, Send,
-  GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History, ClipboardList, Package, Coins, X,
+  GraduationCap, Wallet, BarChart3, ShieldCheck, Mail, History, ClipboardList, Package, Coins, X, Briefcase,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "@/lib/types";
@@ -24,6 +24,7 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
       section: "Gestion",
       items: [
         { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+        { href: "/promoters", label: "Promoteurs", icon: Briefcase },
         { href: "/schools", label: "Écoles", icon: Landmark },
         { href: "/users", label: "Comptes", icon: ShieldCheck },
       ],

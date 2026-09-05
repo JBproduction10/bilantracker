@@ -1,29 +1,49 @@
 import type { SessionUser } from "./types";
+import { getSchoolPromoterId } from "./schools-data";
 
 /** Full visibility across every school: manage everything (us). */
 export function isSuperAdmin(user: SessionUser): boolean {
   return user.role === "super_admin";
 }
 
-/** Full visibility across every school, read-only (the promoter). */
+/** Full visibility across its own promoter's schools, read-only (the promoter). */
 export function isPromoter(user: SessionUser): boolean {
   return user.role === "promoter";
 }
 
-/** Bonté Service: network-wide, validates/executes purchase order requests but never touches student/employee data directly. */
+/** Bonté Service: network-wide within its own promoter, validates/executes purchase order requests but never touches student/employee data directly. */
 export function isTreasury(user: SessionUser): boolean {
   return user.role === "treasury";
 }
 
-/** Can see every school's data, whether or not they can edit it. */
+/**
+ * True if this role is one of the "network-wide" roles at all — used to
+ * gate the aggregate dashboards/reports/queues. This is a role check only;
+ * it does NOT mean the person can see every school in the database. The
+ * actual set of schools returned to a promoter/treasury account is always
+ * scoped to their own promoterId (see getVisibleSchoolIds in
+ * schools-data.ts) — this function is deliberately not used to authorize
+ * access to one specific school by id.
+ */
 export function canViewAllSchools(user: SessionUser): boolean {
   return user.role === "super_admin" || user.role === "promoter" || user.role === "treasury";
 }
 
-/** Can read this specific school's data (students, expenses, payslips, reports). */
-export function canReadSchool(user: SessionUser, schoolId: string): boolean {
-  if (canViewAllSchools(user)) return true;
-  return user.schoolId === schoolId;
+/**
+ * Can read this specific school's data (students, expenses, payslips,
+ * reports). Promoter/treasury accounts are only granted this for schools
+ * under their own promoterId — never another promoter's, even though both
+ * roles otherwise see a "network-wide" aggregate within their own tenant.
+ */
+export async function canReadSchool(user: SessionUser, schoolId: string): Promise<boolean> {
+  if (user.role === "super_admin") return true;
+  if (user.schoolId === schoolId) return true;
+  if (user.role === "promoter" || user.role === "treasury") {
+    if (!user.promoterId) return false;
+    const promoterId = await getSchoolPromoterId(schoolId);
+    return promoterId === user.promoterId;
+  }
+  return false;
 }
 
 /**
@@ -95,15 +115,24 @@ export function canSubmitPurchaseOrder(user: SessionUser, schoolId: string): boo
   return canManageSchool(user, schoolId);
 }
 
-/** Only Bonté Service (treasury) or the super admin validate/reject/execute a request — never the school itself. */
-export function canDecidePurchaseOrder(user: SessionUser): boolean {
-  return user.role === "super_admin" || user.role === "treasury";
+/**
+ * Only Bonté Service (treasury) or the super admin validate/reject/execute
+ * a request — never the school itself. A treasury account may only decide
+ * on requests from its own promoter's schools, and only if that promoter
+ * actually runs a treasury company; a promoter without one has no treasury
+ * decision-maker other than the super admin.
+ */
+export async function canDecidePurchaseOrder(user: SessionUser, schoolId: string): Promise<boolean> {
+  if (user.role === "super_admin") return true;
+  if (user.role !== "treasury" || !user.promoterId) return false;
+  const promoterId = await getSchoolPromoterId(schoolId);
+  return promoterId === user.promoterId;
 }
 
-/** Anyone who can already see the school, plus treasury/promoter (covered by canReadSchool via canViewAllSchools). */
-export function canViewPurchaseOrders(user: SessionUser, schoolId?: string): boolean {
-  if (canViewAllSchools(user)) return true;
-  if (!schoolId) return false;
+/** Anyone who can already see the school, plus treasury/promoter within their own network (covered by canReadSchool). */
+export async function canViewPurchaseOrders(user: SessionUser, schoolId?: string): Promise<boolean> {
+  if (user.role === "super_admin") return true;
+  if (!schoolId) return canViewAllSchools(user); // network-wide queue: role gate only, data itself scoped separately
   return canReadSchool(user, schoolId);
 }
 
@@ -121,23 +150,30 @@ export function canManageInventory(user: SessionUser, schoolId: string): boolean
   return false;
 }
 
-export function canViewInventory(user: SessionUser, schoolId: string): boolean {
+export async function canViewInventory(user: SessionUser, schoolId: string): Promise<boolean> {
   if (canManageInventory(user, schoolId)) return true;
   return canReadSchool(user, schoolId);
 }
 
-/** Bonté Service pushes the base salaries; the super admin is the only one who applies them (generates + sends). */
-export function canSubmitSalaryGrid(user: SessionUser): boolean {
-  return user.role === "treasury" || user.role === "super_admin";
+/**
+ * Bonté Service pushes the base salaries for its own promoter's schools;
+ * the super admin can always do so too (and is the only submitter left
+ * when a promoter has no treasury company).
+ */
+export async function canSubmitSalaryGrid(user: SessionUser, schoolId: string): Promise<boolean> {
+  if (user.role === "super_admin") return true;
+  if (user.role !== "treasury" || !user.promoterId) return false;
+  const promoterId = await getSchoolPromoterId(schoolId);
+  return promoterId === user.promoterId;
 }
 
 export function canDecideSalaryGrid(user: SessionUser): boolean {
   return user.role === "super_admin";
 }
 
-export function canViewSalaryGrid(user: SessionUser, schoolId?: string): boolean {
-  if (canViewAllSchools(user)) return true;
-  if (!schoolId) return false;
+export async function canViewSalaryGrid(user: SessionUser, schoolId?: string): Promise<boolean> {
+  if (user.role === "super_admin") return true;
+  if (!schoolId) return canViewAllSchools(user); // network-wide queue: role gate only, data itself scoped separately
   return canReadSchool(user, schoolId);
 }
 

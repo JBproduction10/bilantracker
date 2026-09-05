@@ -5,7 +5,7 @@ import { computePayslip } from "./calc";
 import type {
   School, EmployeeStatus, Fields, Student, Expense, ExpenseCategory, AppUser, Employee,
   Payment, FeeAdjustment, PaymentMethod, PurchaseOrder, PurchaseOrderStatus, InventoryItem, InventoryCategory, StockMovement,
-  SalaryGridSubmission, SalaryGridStatus, Cycle,
+  SalaryGridSubmission, SalaryGridStatus, Cycle, Promoter,
 } from "./types";
 
 let seeded = false;
@@ -143,7 +143,7 @@ function salaryGrid(
   return base;
 }
 
-function seedSchools(): School[] {
+function seedSchools(promoterId: string): School[] {
   // ---------- 1. Groupe Scolaire Les Cèdres ----------
   const cedresEmployees = [
     emp("Marceline Fotso", "Directrice", "Administration", 250000, "cedres.edu"),
@@ -243,6 +243,7 @@ function seedSchools(): School[] {
       expense("credit", "Remboursement crédit bâtiment", 80000, "August 2026", "2026-08-03"),
       expense("renovation", "Peinture salle CE1", 65000, "August 2026", "2026-08-14"),
     ],
+    promoterId: ""
   };
 
   // ---------- 2. Complexe Scolaire La Fontaine ----------
@@ -317,6 +318,7 @@ function seedSchools(): School[] {
       expense("credit", "Échéance crédit mobilier", 95000, "August 2026", "2026-08-02"),
       expense("other", "Fournitures administratives", 18000, "August 2026", "2026-08-11"),
     ],
+    promoterId: ""
   };
 
   // ---------- 3. Institut Bilingue Excellence ----------
@@ -388,6 +390,7 @@ function seedSchools(): School[] {
       expense("fuel", "Carburant bus scolaire", 55000, "August 2026", "2026-08-09"),
       expense("maintenance", "Entretien climatisation", 28000, "August 2026", "2026-08-19"),
     ],
+    promoterId: ""
   };
 
   // ---------- 4. École Nouvelle Horizon ----------
@@ -446,6 +449,7 @@ function seedSchools(): School[] {
       expense("renovation", "Réfection cour de récréation", 50000, "August 2026", "2026-08-06"),
       expense("supplies", "Matériel pédagogique maternelle", 24000, "August 2026", "2026-08-15"),
     ],
+    promoterId: ""
   };
 
   // ---------- 5. Académie Saint-Michel (new this year) ----------
@@ -498,13 +502,31 @@ function seedSchools(): School[] {
       expense("renovation", "Aménagement des salles de classe", 120000, "July 2026", "2026-07-02"),
       expense("supplies", "Tables-bancs et fournitures", 85000, "July 2026", "2026-07-10"),
     ],
+    promoterId: ""
   };
 
-  return [cedres, fontaine, excellence, horizon, saintMichel];
+  return [cedres, fontaine, excellence, horizon, saintMichel].map((s) => ({ ...s, promoterId }));
+}
+
+/**
+ * Every demo school and its treasury belong to one promoter, Alfred — the
+ * network this install ships with. Additional promoters (each with their
+ * own schools, with or without their own treasury company) are created
+ * later by the super admin from the Promoters page.
+ */
+function seedPromoter(): Promoter {
+  return {
+    id: uid("promo"),
+    name: "Alfred",
+    hasTreasury: true,
+    treasuryName: "Bonté Service",
+    createdAt: Date.now(),
+  };
 }
 
 async function seedUsers(schools: School[]) {
   const [cedres, fontaine, excellence, horizon, saintMichel] = schools;
+  const promoterId = schools[0]?.promoterId;
   const pw = (p: string) => bcrypt.hashSync(p, 8);
   const fontaineTeacher = fontaine.employees[1]; // Adèle Ngassa
 
@@ -514,12 +536,12 @@ async function seedUsers(schools: School[]) {
       passwordHash: pw("admin1234"), role: "super_admin", status: "active",
     },
     {
-      id: uid("user"), name: "Le Promoteur", email: "promoteur@groupescolaire.cm",
-      passwordHash: pw("promoteur1234"), role: "promoter", status: "active",
+      id: uid("user"), name: "Alfred", email: "promoteur@groupescolaire.cm",
+      passwordHash: pw("promoteur1234"), role: "promoter", status: "active", promoterId,
     },
     {
       id: uid("user"), name: "Bonté Service", email: "tresorerie@bonteservice.cm",
-      passwordHash: pw("tresorerie1234"), role: "treasury", status: "active",
+      passwordHash: pw("tresorerie1234"), role: "treasury", status: "active", promoterId,
     },
     {
       id: uid("user"), name: "Marceline Fotso", email: "admin.cedres@groupescolaire.cm",
@@ -601,10 +623,33 @@ export async function ensureSeeded(): Promise<void> {
   if (seeded) return;
   const db = await getDb();
 
+  const promoterCount = await db.collection("promoters").countDocuments();
+  let promoter: Promoter | null = null;
+  if (promoterCount === 0) {
+    promoter = seedPromoter();
+    await db.collection("promoters").insertOne(promoter);
+
+    // Migration path: an existing database from before promoters existed
+    // already has schools (and promoter/treasury accounts) with no
+    // promoterId at all. Bundle everything that's already there under
+    // this one promoter rather than leaving it unscoped/invisible.
+    await db.collection("schools").updateMany({ promoterId: { $exists: false } }, { $set: { promoterId: promoter.id } });
+    await db.collection("users").updateMany(
+      { role: { $in: ["promoter", "treasury"] }, promoterId: { $exists: false } },
+      { $set: { promoterId: promoter.id } }
+    );
+  }
+
   const schoolCount = await db.collection("schools").countDocuments();
   let schools: School[] = [];
   if (schoolCount === 0) {
-    schools = seedSchools();
+    // First boot: reuse the promoter we just created, or fall back to
+    // whichever one already exists (e.g. a database seeded with promoters
+    // but no schools yet, which shouldn't normally happen but is cheap to
+    // guard against).
+    const alfred = promoter || (await db.collection<Promoter>("promoters").findOne({}));
+    if (!alfred) throw new Error("No promoter available to seed demo schools under.");
+    schools = seedSchools(alfred.id);
     await db.collection("schools").insertMany(schools);
   }
 
@@ -619,6 +664,7 @@ export async function ensureSeeded(): Promise<void> {
   await db.collection("users").createIndex({ email: 1 }, { unique: true });
   await db.collection("schools").createIndex({ id: 1 }, { unique: true });
   await db.collection("schools").createIndex({ domain: 1 }, { unique: true });
+  await db.collection("promoters").createIndex({ id: 1 }, { unique: true });
 
   seeded = true;
 }

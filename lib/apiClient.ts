@@ -8,7 +8,12 @@ import type {
   InventoryItem, InventoryItemInput, StockMovement, StockMovementInput, InventorySummary,
   NetworkInventoryOverview,
   SalaryGridSubmission, SalaryGridSubmissionInput, SalaryGridDecisionInput, SalaryGridStatus,
+  Promoter, PromoterInput,
 } from "./types";
+
+export interface PromoterWithSchools extends Promoter {
+  schools: { id: string; name: string; color: string }[];
+}
 
 const BASE = "/api";
 
@@ -41,6 +46,11 @@ export const api = {
   addSchool: (body: Partial<School>) => request<School>("/schools", { method: "POST", body }),
   updateSchool: (id: string, body: Partial<School>) => request<School>(`/schools/${id}`, { method: "PUT", body }),
   removeSchool: (id: string) => request<null>(`/schools/${id}`, { method: "DELETE" }),
+
+  listPromoters: () => request<PromoterWithSchools[]>("/promoters"),
+  addPromoter: (body: PromoterInput) => request<Promoter>("/promoters", { method: "POST", body }),
+  updatePromoter: (id: string, body: Partial<PromoterInput>) => request<Promoter>(`/promoters/${id}`, { method: "PUT", body }),
+  removePromoter: (id: string) => request<null>(`/promoters/${id}`, { method: "DELETE" }),
 
   addDepartment: (sid: string, body: Partial<Department>) =>
     request<Department>(`/schools/${sid}/departments`, { method: "POST", body }),

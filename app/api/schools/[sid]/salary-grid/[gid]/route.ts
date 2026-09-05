@@ -28,11 +28,13 @@ export const PATCH = withAuth(async (req, { params }, user) => {
     details: { status: submission.status, generatedCount: submission.generatedCount, sentCount: submission.sentCount },
   });
 
-  // Best-effort: let Bonté Service (who pushed the grid) and the school's
-  // own admin (whose payslips just moved) know the outcome.
+  // Best-effort: let this promoter's own Bonté Service (who pushed the
+  // grid, if there is one) and the school's own admin (whose payslips just
+  // moved) know the outcome.
   try {
+    const promoterId = await data.getSchoolPromoterId(params.sid);
     const [treasuryIds, schoolAdminIds] = await Promise.all([
-      listUserIdsByRole(["treasury"]),
+      promoterId ? listUserIdsByRole(["treasury"], undefined, promoterId) : Promise.resolve([]),
       listUserIdsByRole(["school_admin"], params.sid),
     ]);
     const verb = submission.status === "applied" ? "appliquée" : "rejetée";

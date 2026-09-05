@@ -1,12 +1,13 @@
 import { withAuth, json } from "@/lib/apiHelpers";
 import * as data from "@/lib/schools-data";
 import { logAudit } from "@/lib/audit";
-import { canViewAllSchools, isSuperAdmin, requireCondition } from "@/lib/authz";
+import { isSuperAdmin, requireCondition } from "@/lib/authz";
 
 export const GET = withAuth(async (_req, _ctx, user) => {
   const schools = await data.listSchools();
-  if (canViewAllSchools(user)) return json(schools);
-  return json(schools.filter((s) => s.id === user.schoolId));
+  const visibleIds = await data.getVisibleSchoolIds(user);
+  if (!visibleIds) return json(schools); // super_admin: unrestricted
+  return json(schools.filter((s) => visibleIds.includes(s.id)));
 });
 
 export const POST = withAuth(async (req, _ctx, user) => {

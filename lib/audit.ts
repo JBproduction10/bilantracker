@@ -44,15 +44,18 @@ export async function logAudit(input: LogAuditInput): Promise<void> {
 
 export interface ListAuditLogsOptions {
   schoolId?: string;
+  /** Restricts results to entries for one of these schools — a promoter's own network, never another promoter's. Omit for the super admin's unrestricted view. */
+  schoolIds?: string[];
   limit?: number;
   /** Entries whose actorRole is in this list are left out entirely — used so a promoter can't see what a super_admin did. */
   excludeActorRoles?: string[];
 }
 
-export async function listAuditLogs({ schoolId, limit = 200, excludeActorRoles }: ListAuditLogsOptions = {}): Promise<AuditEntry[]> {
+export async function listAuditLogs({ schoolId, schoolIds, limit = 200, excludeActorRoles }: ListAuditLogsOptions = {}): Promise<AuditEntry[]> {
   const db = await getDb();
   const filter: Record<string, unknown> = {};
   if (schoolId) filter.schoolId = schoolId;
+  if (schoolIds) filter.schoolId = { $in: schoolIds };
   if (excludeActorRoles && excludeActorRoles.length > 0) filter.actorRole = { $nin: excludeActorRoles };
   const docs = await db
     .collection<AuditEntry & { _id?: unknown }>("audit_logs")
