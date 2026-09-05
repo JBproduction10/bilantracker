@@ -8,7 +8,11 @@ import { ROLE_HOME } from "@/lib/roleHome";
 const ROLE_ALLOWED: Record<Role, string[]> = {
   super_admin: ["*"], // includes /settings
   promoter: ["/dashboard", "/reports", "/audit-log", "/purchase-orders", "/salary-grid"],
-  school_admin: ["/dashboard", "/students", "/receipt-requests", "/expenses", "/employees", "/departments", "/payslips", "/send", "/fields", "/purchase-orders", "/inventory", "/salary-grid"],
+  // A school admin generates and previews payslips but never actually
+  // sends them by email — that's the super admin's call alone, after the
+  // school admin notifies them the payroll is ready (see
+  // canNotifyPayslipsReady / canSendPayslips). Hence no "/send" here.
+  school_admin: ["/dashboard", "/students", "/receipt-requests", "/expenses", "/employees", "/departments", "/payslips", "/fields", "/purchase-orders", "/inventory", "/salary-grid"],
   finance: ["/dashboard", "/payslips"],
   teacher: ["/my-payslips"],
   treasury: ["/dashboard", "/purchase-orders", "/reports", "/salary-grid"],

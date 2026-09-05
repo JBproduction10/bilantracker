@@ -99,7 +99,6 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: NavItem[] }[]> = {
       section: "Paie",
       items: [
         { href: "/payslips", label: "Fiches de paie", icon: FileText },
-        { href: "/send", label: "Envoyer les fiches", icon: Send },
         { href: "/fields", label: "Champs de paie", icon: SlidersHorizontal },
         { href: "/salary-grid", label: "Grille salariale (Bonté Service)", icon: Coins },
       ],

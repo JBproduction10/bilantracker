@@ -30,7 +30,7 @@ export const POST = withAuth(async (req, { params }, user) => {
       type: "payslips.ready_to_send",
       title: "Fiches de paie prêtes à envoyer",
       message: `${school.name} a signalé que tous ses employés sont enregistrés et que les fiches de paie de ${period} sont prêtes à être envoyées (${draftCount} en brouillon).`,
-      link: "/payslips",
+      link: "/send",
     });
   } catch (notifyErr) {
     console.error("Failed to notify super admin of payslip readiness:", notifyErr);
